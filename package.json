@@ -1,0 +1,35 @@
+{
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "websocket": "node server.js",
+    "websocket:dev": "nodemon server.js"
+  },
+  "devDependencies": {
+    "axios": "^1.6.4",
+    "laravel-vite-plugin": "^1.0.0",
+    "nodemon": "^3.1.10",
+    "vite": "^5.0.0"
+  },
+  "dependencies": {
+    "@tailwindcss/vite": "^4.1.14",
+    "cors": "^2.8.5",
+    "express": "^5.1.0",
+    "mysql2": "^3.15.3",
+    "socket.io": "^4.8.1",
+    "tailwindcss": "^4.1.14",
+    "ws": "^8.18.3"
+  },
+  "name": "shipex",
+  "description": "ShipEx - Real-time Chat System",
+  "version": "1.0.0",
+  "main": "server.js",
+  "directories": {
+    "test": "tests"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC"
+}

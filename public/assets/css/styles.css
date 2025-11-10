@@ -1,0 +1,384 @@
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@100..900&display=swap');
+
+body {
+    font-family: "Noto Sans KR", sans-serif;
+    font-optical-sizing: auto;
+    font-style: normal;
+}
+
+.bg_primary {
+    background: #003FB4;
+}
+
+.text_primary {
+    color: #003FB4;
+}
+
+.gray_text {
+    color: #46484D;
+}
+
+.gray_text:hover {
+    color: #003FB4;
+}
+
+footer {
+    background: #f6f6f6;
+}
+
+.primary_btn {
+    padding: 0.75rem 1rem;
+    color: #003FB4;
+    border-radius: 10px;
+    color: #003FB4;
+    border: 2px solid #003FB4;
+}
+
+.primary_btn:hover {
+    background: #003FB4;
+    color: #fff;
+}
+
+
+.create_grid_item:hover {
+    background: #c5d8f9;
+}
+
+.img_container {
+    /* padding: 1rem; */
+    padding: 5px;
+    width: 96px;
+    height: 96px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    border-radius: 10px;
+}
+
+.create_grid_item:hover .img_container {
+    background: #d6e2f7;
+}
+
+button {
+    cursor: pointer;
+}
+
+
+
+.modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: #121212B2;
+    display: none;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+}
+
+.modal-content {
+    background-color: white;
+    border-radius: 8px;
+    max-width: 670px;
+    width: 100%;
+    position: relative;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+}
+
+.filter_content {
+    max-width: 700px;
+}
+
+.create_modal {
+    padding: 25px;
+}
+
+.modal-close {
+    position: absolute;
+    top: 16px;
+    right: 16px;
+    cursor: pointer;
+    z-index: 10;
+}
+
+@media (min-width: 1024px) {
+    .create_modal {
+        padding: 32px;
+        background-color: white;
+        border-radius: 8px;
+        max-width: 670px;
+        width: 100%;
+        position: relative;
+        box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+    }
+}
+
+
+/* Loading animation styles */
+.loading-spinner {
+    display: inline-block;
+    width: 20px;
+    height: 20px;
+    border: 3px solid rgba(255, 255, 255, 0.3);
+    border-radius: 50%;
+    border-top-color: #fff;
+    animation: spin 1s ease-in-out infinite;
+    margin-right: 8px;
+    vertical-align: middle;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+.btn-loading {
+    pointer-events: none;
+    opacity: 0.8;
+}
+
+.about_grid_item {
+    color: #46484D;
+}
+
+.grid_active {
+    color: #003FB4;
+    color: #003FB4;
+}
+
+
+
+
+
+
+/* Fix Owl Carousel navigation overflow */
+.owl-carousel {
+    position: relative;
+}
+
+.owl-carousel .owl-nav {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 100%;
+    display: flex;
+    justify-content: space-between;
+    pointer-events: none;
+    padding: 0 8px;
+    /* Keep arrows inside card */
+}
+
+.owl-carousel .owl-nav button {
+    pointer-events: all;
+    background: rgba(255, 255, 255, 0.9) !important;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+.owl-carousel .owl-nav button:hover {
+    background: rgba(255, 255, 255, 1) !important;
+}
+
+/* Prevent carousel from overflowing card */
+.item .owl-carousel {
+    overflow: hidden;
+    border-radius: 0.5rem;
+}
+
+/* Mobile specific adjustments */
+@media (max-width: 1023px) {
+    .owl-carousel .owl-nav {
+        padding: 0 4px;
+    }
+
+    .owl-carousel .owl-nav button {
+        width: 28px;
+        height: 28px;
+        font-size: 14px;
+    }
+}
+
+
+
+
+
+
+
+
+
+.grid_active {
+    color: #003FB4;
+    border-bottom: 3px solid #003FB4;
+}
+
+.spec_ul {
+    list-style: disc;
+    margin-left: 1rem;
+    line-height: 2rem;
+}
+
+.product_imgs img {
+    height: 250px !important;
+}
+
+
+.all_menufacturers .owl-carousel .owl-nav,
+.product_imgs.owl-carousel .owl-nav {
+    position: absolute;
+    top: auto;
+    transform: translateY(-50%);
+    width: 100%;
+    display: flex;
+    justify-content: space-between;
+    pointer-events: none;
+    padding: 0 8px;
+}
+
+
+.owl-next {
+    position: relative;
+    z-index: 1;
+}
+
+
+
+
+
+/* Additional styles for the translator */
+.goog-te-combo {
+    padding: 8px 12px;
+    border-radius: 6px;
+    border: 1px solid #d1d5db;
+    background-color: white;
+    color: #374151;
+    font-size: 14px;
+    width: 100%;
+    max-width: 200px;
+}
+
+.goog-te-gadget {
+    color: transparent !important;
+}
+
+.goog-te-gadget .goog-te-combo {
+    margin: 0;
+}
+
+.skiptranslate iframe {
+    display: none !important;
+}
+
+.language {
+    display: flex;
+    align-items: center;
+    justify-content: end;
+    position: relative;
+}
+
+.goog-te-gadget-simple {
+    border: none !important;
+    background: unset;
+    width: 82px;
+    text-align: center;
+    position: absolute;
+    right: 0;
+    top: 1.7rem;
+    opacity: 0;
+}
+
+/* Fix for layout shift when translator loads */
+#gLang {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    padding-top: 0.3rem;
+    position: absolute;
+    top: 0;
+    right: 0;
+}
+
+
+#gLang span {
+    display: none;
+}
+
+.choose_language {
+    background: #f7f7f7;
+    padding: 0.25rem 0.75rem;
+    font-size: 12px;
+    border-radius: 25px;
+    border: 2px solid #BCBCBC;
+    color: #46484D;
+    cursor: pointer;
+    position: relative;
+    top: 0;
+    right: 0;
+}
+
+.choose_language:hover {
+    border: 2px solid #46484D;
+    background: #46484D;
+    color: #f7f7f7;
+}
+
+
+
+/* Custom Toastr Notifications for Chat */
+.toast {
+    background-color: white !important;
+    border: 1px solid #e5e7eb !important;
+    border-radius: 8px !important;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06) !important;
+    padding: 12px !important;
+    min-height: 80px !important;
+}
+
+.toast-success {
+    background-color: white !important;
+}
+
+#toast-container > .toast-success {
+    background-image: none !important;
+}
+
+.toast-close-button {
+    color: #6b7280 !important;
+    font-weight: normal !important;
+    font-size: 16px !important;
+}
+
+.toast-message {
+    padding: 0 !important;
+}
+
+
+
+/* Responsive adjustments */
+@media (max-width: 1024px) {
+    .footer_links {
+        order: 3;
+        margin-top: 1rem;
+    }
+
+    #gLang {
+        justify-content: center;
+        position: relative;
+        top: -0.8rem;
+    }
+
+    .goog-te-gadget-simple {
+        top: 0.2rem;
+    }
+
+    .language {
+        justify-content: center;
+    }
+}

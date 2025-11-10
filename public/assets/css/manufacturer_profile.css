@@ -1,0 +1,350 @@
+/* Loading animation styles */
+.loading-spinner {
+    display: inline-block;
+    width: 20px;
+    height: 20px;
+    border: 3px solid rgba(255, 255, 255, 0.3);
+    border-radius: 50%;
+    border-top-color: #fff;
+    animation: spin 1s ease-in-out infinite;
+    margin-right: 8px;
+    vertical-align: middle;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+.btn-loading {
+    pointer-events: none;
+    opacity: 0.8;
+}
+
+/* File upload styles */
+.file-upload-area {
+    border: 2px dashed #d1d5db;
+    border-radius: 8px;
+    padding: 24px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    position: relative;
+}
+
+.file-upload-area:hover {
+    border-color: #003FB4;
+    background: #f9fafb;
+}
+
+.file-upload-area.dragover {
+    border-color: #003FB4;
+    background: #eff6ff;
+}
+
+.file-upload-area.has-image {
+    padding: 8px;
+    border-style: solid;
+}
+
+.file-preview {
+    max-width: 100%;
+    max-height: 200px;
+    border-radius: 4px;
+    display: none;
+}
+
+.file-upload-area.has-image .file-preview {
+    display: block;
+    margin: 0 auto;
+}
+
+.file-upload-area.has-image .upload-placeholder {
+    display: none;
+}
+
+.file-upload-area.has-image:hover .file-preview {
+    opacity: 0.7;
+}
+
+/* Help box styles */
+.help-box {
+    background: #f3f4f6;
+    border-radius: 12px;
+    padding: 24px;
+}
+
+/* Radio and checkbox custom styles */
+input[type="radio"]:checked {
+    background-color: #003FB4;
+    border-color: #003FB4;
+}
+
+input[type="checkbox"]:checked {
+    background-color: #003FB4;
+    border-color: #003FB4;
+}
+
+.step-label,
+.step-title {
+    text-align: center;
+    font-weight: 600;
+    font-size: 1rem;
+    color: #46484D;
+}
+
+.step-title {
+    font-weight: normal;
+}
+
+.step-item.active .step-label {
+    color: #003FB4;
+}
+
+.step-item.completed_step .step-label {
+    color: #05660C;
+}
+
+.steps {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 0.5rem;
+}
+
+.step_line {
+    height: 7px;
+    border-radius: 25px;
+    background: #E4E4E4;
+}
+
+.step_line.active_step {
+    background: #003FB4;
+}
+
+.step_line.completed_step {
+    background: #05660C;
+}
+
+.step-content {
+    display: none;
+}
+
+.step-content.active {
+    display: block;
+}
+
+/* Review step styles */
+.review-section {
+    background: white;
+    border-radius: 12px;
+    border: 1px solid #e5e7eb;
+    margin-bottom: 16px;
+    overflow: hidden;
+    transition: all 0.3s ease;
+}
+
+.review-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 20px 24px;
+    background: white;
+    cursor: pointer;
+    user-select: none;
+}
+
+.review-title {
+    font-size: 18px;
+    font-weight: 600;
+    color: #1f2937;
+    flex: 1;
+}
+
+.review-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.edit-btn {
+    color: #003FB4;
+    font-weight: 500;
+    cursor: pointer;
+    background: none;
+    border: none;
+    font-size: 14px;
+    padding: 6px 12px;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    transition: all 0.2s ease;
+}
+
+.edit-btn:hover {
+    background: #eff6ff;
+}
+
+.toggle-btn {
+    background: none;
+    border: none;
+    color: #6b7280;
+    cursor: pointer;
+    padding: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+    border-radius: 4px;
+}
+
+.toggle-btn:hover {
+    background: #f3f4f6;
+    color: #1f2937;
+}
+
+.toggle-btn svg {
+    transition: transform 0.3s ease;
+}
+
+.review-section.collapsed .toggle-btn svg {
+    transform: rotate(-180deg);
+}
+
+.review-content {
+    display: grid;
+    gap: 20px 24px;
+    padding: 24px;
+    background: #fafafa;
+    border-top: 1px solid #e5e7eb;
+    max-height: 3000px;
+    overflow: hidden;
+    transition: max-height 0.4s ease, padding 0.4s ease, opacity 0.3s ease;
+    opacity: 1;
+}
+
+.review-section.collapsed .review-content {
+    max-height: 0;
+    padding: 0 24px;
+    opacity: 0;
+    border-top: none;
+}
+
+.review-label {
+    font-weight: 500;
+    color: #4b5563;
+    font-size: 14px;
+    padding-top: 2px;
+    line-height: 1.5;
+}
+
+.review-value {
+    color: #1f2937;
+    font-size: 14px;
+    word-break: break-word;
+    line-height: 1.5;
+}
+
+.review-image {
+    max-width: 150px;
+    max-height: 100px;
+    border-radius: 4px;
+    object-fit: cover;
+    border: 1px solid #e5e7eb;
+}
+
+.review-list {
+    list-style-type: none;
+    padding-left: 0;
+    margin: 0;
+}
+
+.review-list li {
+    margin-bottom: 8px;
+    padding: 12px;
+    background: white;
+    border-radius: 6px;
+    border-left: 3px solid #003FB4;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+.review-image-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    gap: 12px;
+    margin-top: 0;
+}
+
+.review-image-item {
+    text-align: center;
+    background: white;
+    padding: 8px;
+    border-radius: 6px;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+.review-image-item img {
+    width: 100%;
+    height: 80px;
+    object-fit: cover;
+    border-radius: 4px;
+    border: 1px solid #e5e7eb;
+}
+
+.review-image-title {
+    font-size: 12px;
+    color: #6b7280;
+    margin-top: 6px;
+    word-break: break-word;
+}
+
+.file-preview-small {
+    max-width: 120px;
+    max-height: 80px;
+    border-radius: 4px;
+    object-fit: cover;
+    border: 1px solid #e5e7eb;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+.no-data {
+    color: #9ca3af;
+    font-style: italic;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .review-content {
+        grid-template-columns: 1fr;
+        gap: 12px;
+    }
+
+    .review-label {
+        font-weight: 600;
+        margin-bottom: -4px;
+    }
+
+    .review-header {
+        padding: 16px;
+    }
+
+    .review-section.collapsed .review-content,
+    .review-content {
+        padding: 16px;
+    }
+
+    .review-section.collapsed .review-content {
+        padding: 0 16px;
+    }
+
+    .steps {
+        gap: 0;
+        border-radius: 25px;
+        overflow: hidden;
+        padding-bottom: 0;
+    }
+
+    .step_line {
+        border-radius: 0;
+    }
+}

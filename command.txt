@@ -1,0 +1,3358 @@
+I am building a real time chat system in a website.
+
+Routes for realtime chat:
+// message routes.
+Route::get('/manufacturer/chats', [ChatsController::class, 'chatRecords'])->middleware('manufacturer');
+Route::get('/wholesaler/chats', [ChatsController::class, 'chatRecords'])->middleware('wholesaler');
+Route::get('/wholesaler/chats/{manufacturer_uid}', [ChatsController::class, 'chatWithSpecManufacturer'])->middleware('wholesaler');
+
+Route::post('/fetch-chats', [ChatsController::class, 'fetchChats'])->middleware('manufacturer_or_wholesaler');
+Route::post('/send-text-message', [ChatsController::class, 'sendMessage'])->middleware('manufacturer_or_wholesaler');
+Route::post('/send-file-message', [ChatsController::class, 'sendFileMessage'])->middleware('manufacturer_or_wholesaler');
+Route::post('/get-user-chat-info', [ChatsController::class, 'getUserChatInfo'])->middleware('manufacturer_or_wholesaler');
+Route::post('/get-unread-count', [ChatsController::class, 'getUnreadCount'])->middleware('manufacturer_or_wholesaler');
+Route::post('/update-last-active', [ChatsController::class, 'updateLastActive'])->middleware('manufacturer_or_wholesaler');
+Route::post('/get-chat-list-item', [ChatsController::class, 'getChatListItem'])->middleware('manufacturer_or_wholesaler');
+Route::post('/mark-messages-seen', [ChatsController::class, 'markMessagesAsSeen'])->middleware('manufacturer_or_wholesaler');
+
+
+
+Controller codes:
+<?php
+
+namespace App\Http\Controllers;
+
+use App\Models\Chat;
+use App\Models\Manufacturer;
+use App\Models\Wholesaler;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
+use Intervention\Image\Laravel\Facades\Image;
+use GuzzleHttp\Client;
+use Exception;
+
+class ChatsController extends Controller
+{
+    private function notifyWebSocketServer($data)
+    {
+        try {
+            $client = new Client([
+                'timeout' => 2.0,
+                'connect_timeout' => 1.0
+            ]);
+
+            $client->post('http://localhost:3000/api/notify', [
+                'json' => $data,
+                'headers' => [
+                    'Content-Type' => 'application/json',
+                    'Accept' => 'application/json'
+                ]
+            ]);
+
+            Log::info('WebSocket notification sent', ['type' => $data['type']]);
+        } catch (Exception $e) {
+            Log::error('Failed to notify WebSocket server: ' . $e->getMessage());
+        }
+    }
+
+    public function chatRecords()
+    {
+        if (Auth::guard('wholesaler')->check()) {
+            $sending_to_type = 'manufacturer';
+            $chat_with = Manufacturer::all();
+            $user_uid = Auth::guard('wholesaler')->user()->wholesaler_uid;
+            $user_uid_type = 'manufacturer_uid';
+        } else {
+            $sending_to_type = 'wholesaler';
+            $chat_with = Wholesaler::all();
+            $user_uid = Auth::guard('manufacturer')->user()->manufacturer_uid;
+            $user_uid_type = 'wholesaler_uid';
+        }
+
+        $spec_manufacturer = '';
+        $online_status = 'online';
+        return view('chats.manufacturer-chat-records', compact('chat_with', 'sending_to_type', 'user_uid', 'user_uid_type', 'spec_manufacturer', 'online_status'));
+    }
+
+
+
+
+    public function chatWithSpecManufacturer($manufacturer_uid)
+    {
+        if (Auth::guard('wholesaler')->check()) {
+            $sending_to_type = 'manufacturer';
+            $chat_with = Manufacturer::all();
+            $user_uid = Auth::guard('wholesaler')->user()->wholesaler_uid;
+            // FIX: Query manufacturer table for manufacturer's last_active_time
+            $last_active_time = Manufacturer::where('manufacturer_uid', $manufacturer_uid)->value('last_active_time');
+            $user_uid_type = 'manufacturer_uid';
+        } else {
+            $sending_to_type = 'wholesaler';
+            $chat_with = Wholesaler::all();
+            $user_uid = Auth::guard('manufacturer')->user()->manufacturer_uid;
+            // FIX: Query wholesaler table for wholesaler's last_active_time
+            $last_active_time = Wholesaler::where('wholesaler_uid', $manufacturer_uid)->value('last_active_time');
+            $user_uid_type = 'wholesaler_uid';
+        }
+
+        $spec_manufacturer = Manufacturer::where('manufacturer_uid', $manufacturer_uid)->first();
+        if (!$spec_manufacturer) {
+            return redirect()->route('wholesaler.chats')->with('error', 'Manufacturer not found');
+        }
+
+        $is_online = false;
+        if ($last_active_time) {
+            try {
+                $is_online = \Carbon\Carbon::now()->diffInMinutes(\Carbon\Carbon::parse($last_active_time)) <= 15;
+            } catch (\Exception $e) {
+                $is_online = false;
+            }
+        }
+
+        $online_status = $is_online ? 'online' : 'offline';
+
+        return view('chats.manufacturer-chat-records', compact('chat_with', 'sending_to_type', 'user_uid', 'user_uid_type', 'spec_manufacturer', 'online_status'));
+    }
+
+
+
+
+
+
+
+    public function fetchChats(Request $request)
+    {
+        try {
+            $sending_to = $request['sending_to'];
+            if (Auth::guard('wholesaler')->check()) {
+                $sent_by = Auth::guard('wholesaler')->user()->wholesaler_uid;
+                $last_active_time = Wholesaler::where('wholesaler_uid', $sent_by)->value('last_active_time');
+            } else {
+                $sent_by = Auth::guard('manufacturer')->user()->manufacturer_uid;
+                $last_active_time = Manufacturer::where('manufacturer_uid', $sent_by)->value('last_active_time');
+            }
+
+            $is_online = false;
+            if ($last_active_time) {
+                try {
+                    $is_online = \Carbon\Carbon::now()->diffInMinutes(\Carbon\Carbon::parse($last_active_time)) <= 15;
+                } catch (\Exception $e) {
+                    $is_online = false;
+                }
+            }
+
+            $online_status = $is_online ? 'online' : 'offline';
+
+            $messages = Chat::where(function ($query) use ($sent_by, $sending_to) {
+                $query->where('sent_by', $sent_by)
+                    ->where('sent_to', $sending_to);
+            })->orWhere(function ($query) use ($sent_by, $sending_to) {
+                $query->where('sent_by', $sending_to)
+                    ->where('sent_to', $sent_by);
+            })->orderBy('created_at', 'asc')->get();
+
+            // Get unseen message IDs first
+            $unseenMessageIds = Chat::where('sent_to', $sent_by)
+                ->where('sent_by', $sending_to)
+                ->where('seen', 0)
+                ->pluck('message_uid')
+                ->toArray();
+
+            // Mark messages as seen in database
+            if (!empty($unseenMessageIds)) {
+                Chat::where('sent_to', $sent_by)
+                    ->where('sent_by', $sending_to)
+                    ->where('seen', 0)
+                    ->update(['seen' => 1]);
+
+                // Notify WebSocket about messages being seen
+                $this->notifyWebSocketServer([
+                    'type' => 'messages_marked_seen',
+                    'senderId' => $sent_by,
+                    'receiverId' => $sending_to,
+                    'messageUids' => $unseenMessageIds
+                ]);
+            }
+
+            return response()->json(['messages' => $messages, 'online_status' => $online_status], 200);
+        } catch (\Exception $e) {
+            Log::error('Error fetching chats: ' . $e->getMessage());
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Failed to fetch messages'
+            ], 500);
+        }
+    }
+
+
+
+
+    public function sendMessage(Request $request)
+    {
+        $sending_to = $request['sending_to'];
+        $message_box = $request['message_box'];
+
+        if (Auth::guard('wholesaler')->check()) {
+            $sent_by = Auth::guard('wholesaler')->user()->wholesaler_uid;
+        } else {
+            $sent_by = Auth::guard('manufacturer')->user()->manufacturer_uid;
+        }
+
+        $message_uid = uniqid('msg_');
+
+        // Save to database
+        $chat = Chat::create([
+            'message_uid' => $message_uid,
+            'sent_by' => $sent_by,
+            'sent_to' => $sending_to,
+            'seen' => 0, // Initially unseen
+            'message_type' => 'text',
+            'main_message' => $message_box,
+        ]);
+
+        // After successful database save, notify WebSocket server
+        if ($chat) {
+            $this->notifyWebSocketServer([
+                'type' => 'new_text_message',
+                'senderId' => $sent_by,
+                'receiverId' => $sending_to,
+                'message' => $message_box,
+                'messageUid' => $message_uid,
+                'timestamp' => $chat->created_at->toISOString()
+            ]);
+        }
+
+        return response()->json([
+            'status' => 'success',
+            'message_uid' => $message_uid,
+            'timestamp' => $chat->created_at->toISOString()
+        ], 200);
+    }
+
+    public function sendFileMessage(Request $request)
+    {
+        $request->validate([
+            'file' => 'required|file|mimes:jpg,jpeg,png,gif,pdf,doc,docx,ppt,pptx|max:20480',
+        ]);
+
+        $sending_to = $request['sending_to'];
+        $message_text = $request['message_text'] ?? '';
+
+        if (Auth::guard('wholesaler')->check()) {
+            $sent_by = Auth::guard('wholesaler')->user()->wholesaler_uid;
+            $user_folder = 'wholesaler_' . $sent_by;
+        } else {
+            $sent_by = Auth::guard('manufacturer')->user()->manufacturer_uid;
+            $user_folder = 'manufacturer_' . $sent_by;
+        }
+
+        $file = $request->file('file');
+        $originalName = $file->getClientOriginalName();
+        $fileType = $file->getMimeType();
+
+        $directory = "chat_documents/{$user_folder}";
+        if (!Storage::disk('public')->exists($directory)) {
+            Storage::disk('public')->makeDirectory($directory);
+        }
+
+        $filename = uniqid() . '_' . time() . '.' . $file->getClientOriginalExtension();
+        $filePath = "{$directory}/{$filename}";
+
+        if (str_starts_with($fileType, 'image/')) {
+            try {
+                $image = Image::read($file->getPathname());
+                $image->scaleDown(width: 1200);
+                $encodedImage = $image->toJpeg(40);
+                Storage::disk('public')->put($filePath, $encodedImage);
+            } catch (\Exception $e) {
+                Log::error('Image compression failed: ' . $e->getMessage());
+                Storage::disk('public')->put($filePath, file_get_contents($file));
+            }
+        } else {
+            Storage::disk('public')->put($filePath, file_get_contents($file));
+        }
+
+        $fileData = [
+            'file_url' => asset("storage/{$filePath}"),
+            'file_path' => $filePath,
+            'original_name' => $originalName,
+            'file_type' => $fileType,
+            'file_size' => Storage::disk('public')->size($filePath),
+        ];
+
+        $messageData = [
+            'file_data' => $fileData,
+            'message_text' => $message_text
+        ];
+
+        $message_uid = uniqid('file_');
+
+        // Save to database
+        $chat = Chat::create([
+            'message_uid' => $message_uid,
+            'sent_by' => $sent_by,
+            'sent_to' => $sending_to,
+            'seen' => 0, // Initially unseen
+            'message_type' => 'file',
+            'main_message' => json_encode($messageData),
+        ]);
+
+        // After successful database save, notify WebSocket server
+        if ($chat) {
+            $this->notifyWebSocketServer([
+                'type' => 'new_file_message',
+                'senderId' => $sent_by,
+                'receiverId' => $sending_to,
+                'fileData' => $fileData,
+                'messageText' => $message_text,
+                'messageUid' => $message_uid,
+                'timestamp' => $chat->created_at->toISOString()
+            ]);
+        }
+
+        return response()->json([
+            'status' => 'success',
+            'file_data' => $fileData,
+            'message_text' => $message_text,
+            'message_uid' => $message_uid,
+            'timestamp' => $chat->created_at->toISOString()
+        ], 200);
+    }
+
+
+
+    public function markMessagesAsSeen(Request $request)
+    {
+        $messageUids = $request->input('message_uids', []);
+        $senderId = $request->input('sender_id');
+
+        if (Auth::guard('wholesaler')->check()) {
+            $currentUser = Auth::guard('wholesaler')->user()->wholesaler_uid;
+        } else {
+            $currentUser = Auth::guard('manufacturer')->user()->manufacturer_uid;
+        }
+
+        // Mark messages as seen in database
+        Chat::whereIn('message_uid', $messageUids)
+            ->where('sent_to', $currentUser)
+            ->where('sent_by', $senderId)
+            ->where('seen', 0)
+            ->update(['seen' => 1]);
+
+        // Notify WebSocket about messages being seen
+        if (!empty($messageUids)) {
+            $this->notifyWebSocketServer([
+                'type' => 'messages_marked_seen',
+                'senderId' => $currentUser,
+                'receiverId' => $senderId,
+                'messageUids' => $messageUids
+            ]);
+        }
+
+        return response()->json(['status' => 'success']);
+    }
+
+
+
+    public function getUserChatInfo(Request $request)
+    {
+        $userId = $request->input('user_id');
+        $sendingToType = $request->input('sending_to_type');
+
+        try {
+            if ($sendingToType === 'manufacturer') {
+                $user = Manufacturer::where('manufacturer_uid', $userId)->first();
+                if ($user) {
+                    return response()->json([
+                        'status' => 'success',
+                        'user' => [
+                            'id' => $user->manufacturer_uid,
+                            'name' => $user->company_name_en,
+                            'profile_picture' => $user->company_logo ? asset($user->company_logo) : 'https://ui-avatars.com/api/?name=' . urlencode($user->company_name_en) . '&background=3b82f6&color=fff'
+                        ]
+                    ]);
+                }
+            } else {
+                $user = Wholesaler::where('wholesaler_uid', $userId)->first();
+                if ($user) {
+                    return response()->json([
+                        'status' => 'success',
+                        'user' => [
+                            'id' => $user->wholesaler_uid,
+                            'name' => $user->company_name,
+                            'profile_picture' => $user->profile_picture ? asset($user->profile_picture) : 'https://ui-avatars.com/api/?name=' . urlencode($user->company_name) . '&background=3b82f6&color=fff'
+                        ]
+                    ]);
+                }
+            }
+
+            return response()->json([
+                'status' => 'error',
+                'message' => 'User not found'
+            ], 404);
+        } catch (\Exception $e) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Error fetching user info'
+            ], 500);
+        }
+    }
+
+    public function getUnreadCount(Request $request)
+    {
+        $userId = $request->input('user_id');
+
+        if (Auth::guard('wholesaler')->check()) {
+            $currentUser = Auth::guard('wholesaler')->user()->wholesaler_uid;
+        } else {
+            $currentUser = Auth::guard('manufacturer')->user()->manufacturer_uid;
+        }
+
+        $count = Chat::where('sent_to', $currentUser)
+            ->where('sent_by', $userId)
+            ->where('seen', 0)
+            ->count();
+
+        return response()->json(['count' => $count]);
+    }
+
+
+
+
+
+    public function updateLastActive(Request $request)
+    {
+        try {
+            if (Auth::guard('wholesaler')->check()) {
+                $userId = Auth::guard('wholesaler')->user()->wholesaler_uid;
+                Wholesaler::where('wholesaler_uid', $userId)
+                    ->update(['last_active_time' => now()]);
+            } else {
+                $userId = Auth::guard('manufacturer')->user()->manufacturer_uid;
+                Manufacturer::where('manufacturer_uid', $userId)
+                    ->update(['last_active_time' => now()]);
+            }
+
+            // Notify WebSocket server about activity
+            $this->notifyWebSocketServer([
+                'type' => 'user_activity',
+                'userId' => $userId,
+                'timestamp' => now()->toISOString()
+            ]);
+
+            return response()->json(['status' => 'success']);
+        } catch (\Exception $e) {
+            Log::error('Error updating last active: ' . $e->getMessage());
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Failed to update last active time'
+            ], 500);
+        }
+    }
+
+
+
+
+
+
+    public function getChatListItem(Request $request)
+    {
+        $userId = $request->input('user_id');
+        $sendingToType = $request->input('sending_to_type');
+        $currentUserId = $request->input('current_user_id');
+
+        try {
+            if ($sendingToType === 'manufacturer') {
+                $user = Manufacturer::where('manufacturer_uid', $userId)->first();
+                if ($user) {
+                    // Get last message
+                    $lastMessage = Chat::where(function ($query) use ($currentUserId, $userId) {
+                        $query->where(function ($q) use ($currentUserId, $userId) {
+                            $q->where('sent_by', $currentUserId)->where('sent_to', $userId);
+                        })->orWhere(function ($q) use ($currentUserId, $userId) {
+                            $q->where('sent_by', $userId)->where('sent_to', $currentUserId);
+                        });
+                    })->latest()->first();
+
+                    // Get unseen count
+                    $unseenCount = Chat::where('sent_to', $currentUserId)
+                        ->where('sent_by', $userId)
+                        ->where('seen', 0)
+                        ->count();
+
+                    // Format last message
+                    $lastMessageTime = $lastMessage ? $lastMessage->created_at->diffForHumans(null, true, true) : '';
+
+                    if ($lastMessage) {
+                        if ($lastMessage->message_type === 'text') {
+                            $lastMessageText = \Illuminate\Support\Str::limit($lastMessage->main_message, 40);
+                            $messageIcon = '';
+                        } else {
+                            $isSent = $lastMessage->sent_by === $currentUserId;
+                            $messageIcon = '<i class="fas fa-file-alt"></i>';
+                            $lastMessageText = $isSent ? 'File sent' : 'File received';
+                        }
+                    } else {
+                        $lastMessageText = 'No messages yet';
+                        $messageIcon = '';
+                    }
+
+                    return response()->json([
+                        'status' => 'success',
+                        'user' => [
+                            'id' => $user->manufacturer_uid,
+                            'name' => $user->company_name_en,
+                            'profile_picture' => $user->company_logo ? asset($user->company_logo) : 'https://ui-avatars.com/api/?name=' . urlencode($user->company_name_en) . '&background=3b82f6&color=fff',
+                            'last_message' => $lastMessageText,
+                            'message_icon' => $messageIcon,
+                            'last_message_time' => $lastMessageTime,
+                            'unseen_count' => $unseenCount
+                        ]
+                    ]);
+                }
+            } else {
+                $user = Wholesaler::where('wholesaler_uid', $userId)->first();
+                if ($user) {
+                    // Same logic for wholesaler
+                    $lastMessage = Chat::where(function ($query) use ($currentUserId, $userId) {
+                        $query->where(function ($q) use ($currentUserId, $userId) {
+                            $q->where('sent_by', $currentUserId)->where('sent_to', $userId);
+                        })->orWhere(function ($q) use ($currentUserId, $userId) {
+                            $q->where('sent_by', $userId)->where('sent_to', $currentUserId);
+                        });
+                    })->latest()->first();
+
+                    $unseenCount = Chat::where('sent_to', $currentUserId)
+                        ->where('sent_by', $userId)
+                        ->where('seen', 0)
+                        ->count();
+
+                    $lastMessageTime = $lastMessage ? $lastMessage->created_at->diffForHumans(null, true, true) : '';
+
+                    if ($lastMessage) {
+                        if ($lastMessage->message_type === 'text') {
+                            $lastMessageText = \Illuminate\Support\Str::limit($lastMessage->main_message, 40);
+                            $messageIcon = '';
+                        } else {
+                            $isSent = $lastMessage->sent_by === $currentUserId;
+                            $messageIcon = '<i class="fas fa-file-alt"></i>';
+                            $lastMessageText = $isSent ? 'File sent' : 'File received';
+                        }
+                    } else {
+                        $lastMessageText = 'No messages yet';
+                        $messageIcon = '';
+                    }
+
+                    return response()->json([
+                        'status' => 'success',
+                        'user' => [
+                            'id' => $user->wholesaler_uid,
+                            'name' => $user->company_name,
+                            'profile_picture' => $user->profile_picture ? asset($user->profile_picture) : 'https://ui-avatars.com/api/?name=' . urlencode($user->company_name) . '&background=3b82f6&color=fff',
+                            'last_message' => $lastMessageText,
+                            'message_icon' => $messageIcon,
+                            'last_message_time' => $lastMessageTime,
+                            'unseen_count' => $unseenCount
+                        ]
+                    ]);
+                }
+            }
+
+            return response()->json([
+                'status' => 'error',
+                'message' => 'User not found'
+            ], 404);
+        } catch (\Exception $e) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Error fetching user info'
+            ], 500);
+        }
+    }
+}
+
+
+
+blade codebasE:
+@extends('layouts.chats.app')
+
+@section('title', 'Your Chat Records')
+
+@section('styles')
+    <style>
+        .file-preview {
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+
+        .file-preview:hover {
+            transform: scale(1.05);
+        }
+
+        .file-icon {
+            width: 48px;
+            height: 48px;
+        }
+
+        .back_arrow {
+            display: none;
+        }
+
+        @media screen and (max-width: 800px) {
+            .back_arrow {
+                display: block !important;
+            }
+
+            .message-input-container {
+                padding: 8px 12px;
+            }
+
+            .attachment-btn,
+            .send-btn {
+                flex-shrink: 0;
+            }
+
+            .message-input-wrapper {
+                min-width: 0;
+            }
+
+            #messagesContainer {
+                height: calc(100vh - 150px);
+            }
+
+            .seen-indicator {
+                display: inline-flex;
+                align-items: center;
+            }
+
+            .sent_message .time-container {
+                justify-content: flex-end;
+            }
+
+            .received_message .time-container {
+                justify-content: flex-start;
+            }
+        }
+    </style>
+@endsection
+
+@section('content')
+    <div class="h-screen flex flex-col">
+        <!-- Header -->
+        <div class="bg-white border-b border-gray-200 px-6 py-4 lg:block chat_header  @if ($spec_manufacturer != '') hidden @endif">
+            <div class="flex items-center gap-2">
+                <h1 class="text-2xl font-bold text-gray-900">
+                    <a href="/" class="hover:text-blue-600 transition-colors">Home</a>
+                    <span class="text-gray-500">/</span>
+                    <span>Chats</span>
+                </h1>
+            </div>
+            <p class="text-sm text-gray-600">Your chat history with {{ $sending_to_type }}s</p>
+        </div>
+
+        <!-- Chat Container -->
+        <div class="grid lg:flex-1 lg:flex overflow-hidden">
+            <!-- Left Sidebar - Chat List -->
+            <div class="w-full lg:w-80 bg-white border-r border-gray-200 flex flex-col">
+                <!-- Search Bar -->
+                <div class="p-4 border-b border-gray-200 lg:block search_input_box @if ($spec_manufacturer != '') hidden @endif">
+                    <input type="text" placeholder="Search chats..."
+                        class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        onkeyup="searchChat(this)">
+                </div>
+
+                <!-- Chat List -->
+                <div class="lg:flex-1 lg:block overflow-y-auto chat_list  @if ($spec_manufacturer != '') hidden @endif">
+                    @php
+                        // Get all unique user IDs that have chat history with the current user
+                        $chatPartners = \App\Models\Chat::where(function ($query) use ($user_uid) {
+                            $query->where('sent_by', $user_uid)->orWhere('sent_to', $user_uid);
+                        })
+                            ->get()
+                            ->map(function ($chat) use ($user_uid) {
+                                // Return the other user's ID (the chat partner)
+                                return $chat->sent_by === $user_uid ? $chat->sent_to : $chat->sent_by;
+                            })
+                            ->unique()
+                            ->values();
+
+                        // Filter users to only those with chat history
+                        $usersWithChats = $chat_with->filter(function ($user) use ($chatPartners, $user_uid_type) {
+                            return $chatPartners->contains($user->{$user_uid_type});
+                        });
+                    @endphp
+
+                    @forelse ($usersWithChats as $user)
+                        @php
+                            $userId = $user->{$user_uid_type};
+
+                            // Get unseen message count (messages sent TO current user that are unseen)
+                            $unseenCount = \App\Models\Chat::where('sent_to', $user_uid)
+                                ->where('sent_by', $userId)
+                                ->where('seen', 0)
+                                ->count();
+
+                            // Get last message
+                            $lastMessage = \App\Models\Chat::where(function ($query) use ($user_uid, $userId) {
+                                $query
+                                    ->where(function ($q) use ($user_uid, $userId) {
+                                        $q->where('sent_by', $user_uid)->where('sent_to', $userId);
+                                    })
+                                    ->orWhere(function ($q) use ($user_uid, $userId) {
+                                        $q->where('sent_by', $userId)->where('sent_to', $user_uid);
+                                    });
+                            })
+                                ->latest()
+                                ->first();
+
+                            // Format last message time
+                            $lastMessageTime = $lastMessage
+                                ? $lastMessage->created_at->diffForHumans(null, true, true)
+                                : '';
+
+                            // Format last message text based on message type
+                            if ($lastMessage) {
+                                if ($lastMessage->message_type === 'text') {
+                                    $lastMessageText = \Illuminate\Support\Str::limit($lastMessage->main_message, 40);
+                                    $messageIcon = '';
+                                } else {
+                                    // Determine if it was sent or received
+                                    $isSent = $lastMessage->sent_by === $user_uid;
+
+                                    // Get appropriate icon and text based on message type
+                                    switch ($lastMessage->message_type) {
+                                        case 'image':
+                                            $messageIcon = '<i class="fas fa-image"></i>';
+                                            $lastMessageText = $isSent ? 'Photo sent' : 'Photo received';
+                                            break;
+                                        case 'file':
+                                        case 'document':
+                                            $messageIcon = '<i class="fas fa-file-alt"></i>';
+                                            $lastMessageText = $isSent ? 'File sent' : 'File received';
+                                            break;
+                                        case 'video':
+                                            $messageIcon = '<i class="fas fa-video"></i>';
+                                            $lastMessageText = $isSent ? 'Video sent' : 'Video received';
+                                            break;
+                                        case 'audio':
+                                            $messageIcon = '<i class="fas fa-microphone"></i>';
+                                            $lastMessageText = $isSent ? 'Audio sent' : 'Audio received';
+                                            break;
+                                        default:
+                                            $messageIcon = '<i class="fas fa-paperclip"></i>';
+                                            $lastMessageText = $isSent ? 'File sent' : 'File received';
+                                    }
+                                }
+                            } else {
+                                $lastMessageText = 'No messages yet';
+                                $messageIcon = '';
+                            }
+
+                            // Determine profile picture
+                            if ($sending_to_type === 'manufacturer') {
+                                // Current user is wholesaler, showing manufacturers
+                                $profilePicture = $user->company_logo
+                                    ? asset($user->company_logo)
+                                    : 'https://ui-avatars.com/api/?name=' .
+                                        urlencode($user->name ?? ($user->company_name_en ?? 'User')) .
+                                        '&background=3b82f6&color=fff';
+                                $userName = $user->company_name_en;
+                            } else {
+                                // Current user is manufacturer, showing wholesalers
+                                $profilePicture = $user->profile_picture
+                                    ? asset($user->profile_picture)
+                                    : 'https://ui-avatars.com/api/?name=' .
+                                        urlencode($user->company_name ?? 'User') .
+                                        '&background=3b82f6&color=fff';
+                                $userName = $user->company_name ?? 'User';
+                            }
+                        @endphp
+
+                        <div class="chat_tab inactive_chat_tab" data-userid="{{ $userId }}"
+                            onclick="activateChat(this)">
+                            <img src="{{ $profilePicture }}" alt="{{ $userName }}"
+                                class="w-12 h-12 rounded-full chat_user_img object-cover"
+                                onerror="this.src='https://ui-avatars.com/api/?name={{ urlencode($userName) }}&background=3b82f6&color=fff'">
+                            <div class="flex-1 min-w-0">
+                                <div class="flex justify-between items-baseline">
+                                    <h3 class="font-semibold text-gray-900 truncate chat_user_name">
+                                        {{ $userName }}
+                                    </h3>
+                                    @if ($lastMessageTime)
+                                        <span class="text-xs text-gray-500">{{ $lastMessageTime }}</span>
+                                    @endif
+                                </div>
+                                <p class="text-sm text-gray-600 truncate">
+                                    @if ($messageIcon)
+                                        {!! $messageIcon !!}
+                                    @endif
+                                    {{ $lastMessageText }}
+                                </p>
+                            </div>
+                            @if ($unseenCount > 0)
+                                <span class="unread_badge">{{ $unseenCount }}</span>
+                            @else
+                                <span class="unread_badge hidden">0</span>
+                            @endif
+                        </div>
+                    @empty
+                        <div class="p-4 text-center text-gray-500">
+                            <p>No chat history yet</p>
+                        </div>
+                    @endforelse
+                </div>
+            </div>
+
+            <!-- Right Side - Chat Area -->
+            <div class=" @if ($spec_manufacturer == '') hidden @endif lg:flex-1 lg:flex lg:flex-col bg-gray-50 relative overflow-y-auto chat_area">
+                <!-- Chat Header -->
+                @if ($spec_manufacturer == '')
+                    <div class="bg-white border-b border-gray-200 px-6 py-4 flex items-center gap-4">
+                        <svg class="w-12 h-12 text-gray-600 cursor-pointer absolute left-[-0.5rem] pr-2 back_arrow"
+                            viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                            stroke-linejoin="round" onclick="showChatList(this)">
+                            <path d="M15 18l-6-6 6-6" />
+                        </svg>
+                        <img src="https://ui-avatars.com/api/?name=Select+User&background=3b82f6&color=fff"
+                            alt="Select User" class="w-10 h-10 rounded-full activated_user_img">
+                        <div class="flex-1">
+                            <h2 class="font-semibold text-gray-900 activated_user_name">Select a chat</h2>
+                            <p class="text-sm text-gray-500 activity">Select a user to start chatting</p>
+                        </div>
+                    </div>
+                @else
+                    <div class="bg-white border-b border-gray-200 px-6 py-4 flex items-center gap-4">
+                        <svg class="w-12 h-12 text-gray-600 cursor-pointer absolute left-[-0.5rem] pr-2 back_arrow"
+                            viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                            stroke-linejoin="round" onclick="showChatList(this)">
+                            <path d="M15 18l-6-6 6-6" />
+                        </svg>
+                        <img src="{{ $spec_manufacturer->company_logo ? asset($spec_manufacturer->company_logo) : 'https://ui-avatars.com/api/?name=' . urlencode($spec_manufacturer->company_name_en) . '&background=3b82f6&color=fff' }}"
+                            alt="Select User" class="w-10 h-10 rounded-full activated_user_img">
+                        <div class="flex-1">
+                            <h2 class="font-semibold text-gray-900 activated_user_name">
+                                {{ $spec_manufacturer->company_name_en }}</h2>
+                            <p class="text-sm text-gray-500 activity capitalize">{{ $online_status }} Now</p>
+                        </div>
+                    </div>
+                @endif
+
+                <!-- Messages Area -->
+                <div class="flex-1 overflow-y-auto px-6 py-4 space-y-2" id="messagesContainer">
+                    <div class="empty_chat_area text-center py-8">
+                        <svg class="w-32 h-32 mb-4 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                                d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                        </svg>
+                        <p class="text-lg font-medium">No chat selected</p>
+                        <p class="text-sm">Select a user from the left to view messages</p>
+                    </div>
+                </div>
+
+                <!-- Message Input Area -->
+                <div class="bg-white border-t border-gray-200 message-input-container">
+                    <!-- File Preview -->
+                    <div id="filePreview" class="mt-3 hidden px-2 lg:px-6">
+                        <div class="flex items-center gap-3 bg-blue-50 p-3 rounded-lg">
+                            <div id="filePreviewContent" class="max-w-[calc(100%-2rem)] overflow-hidden"></div>
+                            <button onclick="cancelFileUpload()" class="text-red-500 hover:text-red-700 flex-shrink-0">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+
+
+                    <div class="flex items-end gap-1 lg:gap-3 w-full lg:px-4 lg:py-2">
+                        <input type="hidden" name="_token" class="csrf_token" value="{{ csrf_token() }}">
+                        <input type="hidden" name="sending_to" class="sending_to" value="">
+
+                        <!-- Attachment Options -->
+                        <div class="relative flex-shrink-0">
+                            <button
+                                class="text-gray-500 hover:text-gray-700 p-2 rounded-lg hover:bg-gray-100 attachment-btn">
+                                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
+                                </svg>
+                            </button>
+                            <input type="file" id="fileInput" class="hidden"
+                                accept=".jpg,.jpeg,.png,.gif,.pdf,.doc,.docx,.ppt,.pptx">
+                        </div>
+
+                        <!-- Message Input -->
+                        <div
+                            class="flex-1 bg-gray-100 rounded-2xl px-4 py-2 flex items-center message-input-wrapper min-w-0">
+                            <textarea placeholder="Type a message..."
+                                class="flex-1 bg-transparent border-none focus:outline-none text-gray-900 placeholder-gray-500 message_box resize-none min-h-[40px] max-h-[120px] w-full"
+                                rows="1"></textarea>
+                        </div>
+
+                        <!-- Send Button -->
+                        <button
+                            class="bg-blue-400 hover:bg-blue-500 text-white p-3 rounded-full transition-colors send-btn flex-shrink-0"
+                            onclick="sendMessage(this)">
+                            <svg class="w-5 h-5 transform rotate-90" fill="none" stroke="currentColor"
+                                viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M12 19l9 2-9-18-9 18l9-2zm0 0v-8" />
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- File Modal -->
+    <div id="fileModal" class="fixed inset-0 bg-[#00000050] flex items-center justify-center hidden z-50">
+        <div class="bg-white rounded-lg max-w-4xl max-h-4/5 overflow-auto">
+            <div class="flex justify-between items-center relative">
+                <button onclick="closeFileModal()"
+                    class="text-gray-500 hover:text-gray-700 absolute top-4 right-4 p-2 bg-white rounded-full">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+            <div class="" id="modalContent"></div>
+        </div>
+    </div>
+@endsection
+
+@section('scripts')
+    <script>
+        var user_uid = "{{ $user_uid }}";
+        var spec_manufacturer_uid = "{{ $spec_manufacturer ? $spec_manufacturer->manufacturer_uid : '' }}";
+
+        function searchChat(input) {
+            let searchTerm = $(input).val().toLowerCase().trim();
+
+            if (searchTerm === '' || searchTerm === null) {
+                $('.chat_tab').removeClass('hidden');
+            } else {
+                $('.chat_tab').addClass('hidden');
+                $('.chat_tab').each(function() {
+                    let userName = $(this).find('.chat_user_name').text().toLowerCase();
+                    if (userName.includes(searchTerm)) {
+                        $(this).removeClass('hidden');
+                    }
+                });
+            }
+        }
+
+        $(document).ready(function() {
+            if (spec_manufacturer_uid) {
+                let chatTab = $(`.chat_tab[data-userid="${spec_manufacturer_uid}"]`);
+                if (chatTab.length > 0) {
+                    activateChat(chatTab[0]);
+                } else {
+                    sending_to = spec_manufacturer_uid;
+                    $(".sending_to").val(spec_manufacturer_uid);
+                    @if ($spec_manufacturer)
+                        $(".activated_user_img").attr('src',
+                            "{{ $spec_manufacturer->company_logo ? asset($spec_manufacturer->company_logo) : 'https://ui-avatars.com/api/?name=' . urlencode($spec_manufacturer->company_name_en) . '&background=3b82f6&color=fff' }}"
+                        );
+                        $(".activated_user_name").html("{{ $spec_manufacturer->company_name_en }}");
+                        $(".activity").html('Active now');
+                    @endif
+                    $("#messagesContainer").html(emptyChat);
+                }
+            }
+        });
+    </script>
+
+    <script src="{{ asset('assets/js/chat-websocket.js') }}"></script>
+@endsection
+
+
+
+
+messaging.js:
+var csrf_token = $(".csrf_token").val();
+var sending_to = $(".sending_to").val();
+var currentFile = null;
+
+const emojis = [
+    '😀', '😃', '😄', '😁', '😆', '😅', '😂', '🤣', '😊', '😇',
+    '🙂', '🙃', '😉', '😌', '😍', '🥰', '😘', '😗', '😙', '😚',
+    '😋', '😛', '😝', '😜', '🤪', '🤨', '🧐', '🤓', '😎', '🤩',
+    '🥳', '😏', '😒', '😞', '😔', '😟', '😕', '🙁', '😣', '😖',
+    '😫', '😩', '🥺', '😢', '😭', '😤', '😠', '😡', '🤬', '🤯',
+    '😳', '🥵', '🥶', '😱', '😨', '😰', '😥', '😓', '🤗', '🤔',
+    '👍', '👎', '👌', '✌️', '🤞', '🤟', '🤘', '🤙', '👈', '👉',
+    '👆', '👇', '☝️', '✋', '🤚', '🖐️', '🖖', '👋', '🤝', '🙏',
+    '❤️', '🧡', '💛', '💚', '💙', '💜', '🖤', '🤍', '🤎', '💔',
+    '❣️', '💕', '💞', '💓', '💗', '💖', '💘', '💝', '🎉', '🎊'
+];
+
+$(document).ready(function () {
+    $('#fileInput').on('change', function (e) {
+        handleFileSelect(e);
+    });
+
+    $('.attachment-btn').on('click', function () {
+        $('#fileInput').click();
+    });
+
+    $('.message_box').on('keypress', function (e) {
+        if (e.which === 13 && !e.shiftKey) {
+            e.preventDefault();
+            sendMessage($('.send-btn'));
+        }
+    });
+
+    $('.message_box').on('input', function () {
+        this.style.height = 'auto';
+        this.style.height = (this.scrollHeight) + 'px';
+    });
+
+    $(document).on('click', function (e) {
+        if (!$(e.target).closest('.emoji-container').length) {
+            $('#emojiPicker').remove();
+        }
+    });
+});
+
+function handleFileSelect(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'application/pdf',
+        'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'application/vnd.ms-powerpoint', 'application/vnd.openxmlformats-officedocument.presentationml.presentation'];
+
+    if (!allowedTypes.includes(file.type)) {
+        toastr.error('Only images, PDF, DOC, and PPT files are allowed.');
+        return;
+    }
+
+    if (file.size > 20 * 1024 * 1024) {
+        toastr.error('File size must be less than 20MB.');
+        return;
+    }
+
+    currentFile = file;
+    showFilePreview(file);
+}
+
+function showFilePreview(file) {
+    const preview = $('#filePreview');
+    const previewContent = $('#filePreviewContent');
+
+    if (file.type.startsWith('image/')) {
+        const reader = new FileReader();
+        reader.onload = function (e) {
+            previewContent.html(`
+                <img src="${e.target.result}" class="w-16 h-16 object-cover rounded" alt="Preview">
+                <span class="text-sm">${file.name}</span>
+            `);
+        };
+        reader.readAsDataURL(file);
+    } else {
+        const icon = getFileIcon(file.type);
+        previewContent.html(`
+            <div class="flex items-center gap-3">
+                ${icon}
+                <span class="text-sm">${file.name}</span>
+            </div>
+        `);
+    }
+
+    preview.removeClass('hidden');
+}
+
+function cancelFileUpload() {
+    currentFile = null;
+    $('#fileInput').val('');
+    $('#filePreview').addClass('hidden');
+    $('#filePreviewContent').html('');
+}
+
+function uploadFile(messageText = '') {
+    if (!currentFile || !sending_to) return;
+
+    const formData = new FormData();
+    formData.append('file', currentFile);
+    formData.append('sending_to', sending_to);
+    formData.append('message_text', messageText);
+    formData.append('_token', csrf_token);
+
+    // Display message immediately with loading indicator
+    const tempMessageId = 'temp_' + Date.now();
+    displayFileMessageWithLoader(currentFile, true, messageText, tempMessageId);
+
+    $.ajax({
+        url: '/send-file-message',
+        type: 'POST',
+        data: formData,
+        processData: false,
+        contentType: false,
+        success: function (response) {
+            if (response.status === 'success') {
+                // Remove temp message and display actual message
+                $(`#${tempMessageId}`).remove();
+                displayFileMessage(response.file_data, true, response.message_text);
+                cancelFileUpload();
+                scrollToBottom();
+            }
+        },
+        error: function (xhr, status, error) {
+            console.error('Error uploading file:', error);
+            $(`#${tempMessageId}`).remove();
+            toastr.error('Error uploading file. Please try again.');
+        }
+    });
+}
+
+function displayFileMessageWithLoader(file, isSent, messageText, tempId) {
+    const messageClass = isSent ? 'sent_message' : 'received_message';
+    const alignClass = isSent ? 'items-end' : 'items-start';
+    const bgClass = isSent ? 'bg-blue-400' : 'bg-purple-400';
+
+    const loaderHtml = `
+        <div class="${messageClass}" id="${tempId}">
+            <div class="flex flex-col gap-0 ${alignClass}">
+                <div class="file-message min-w-[50px] max-w-[200px] lg:min-w-[120px] lg:max-w-[300px]">
+                    <div class="flex items-center gap-3 p-3 ${bgClass} text-white rounded-2xl">
+                        <div class="animate-spin rounded-full h-6 w-6 border-b-2 border-white"></div>
+                        <span class="text-sm">Uploading...</span>
+                    </div>
+                </div>
+            </div>
+        </div>`;
+
+    $("#messagesContainer").append(loaderHtml);
+    $(".empty_chat_area").remove();
+    scrollToBottom();
+}
+
+function sendMessage(passedThis) {
+    let message_box = ($(".message_box").val()).trim();
+
+    if (currentFile) {
+        uploadFile(message_box);
+        $(".message_box").val('');
+        resetTextareaHeight();
+        return;
+    }
+
+    if (message_box !== '' && message_box !== null && sending_to) {
+        const tempMessageUid = 'temp_' + Date.now();
+
+        // Display message immediately with unseen status
+        displayTextMessage(message_box, true, tempMessageUid, false);
+        $(".message_box").val('');
+        resetTextareaHeight();
+        scrollToBottom();
+
+        if (window.sendStopTypingIndicator) {
+            window.sendStopTypingIndicator();
+        }
+
+        $.ajax({
+            url: '/send-text-message',
+            type: 'POST',
+            data: {
+                'sending_to': sending_to,
+                'message_box': message_box,
+                '_token': csrf_token
+            },
+            success: function (response) {
+                // Update temp message with actual message UID
+                $(`[data-message-uid="${tempMessageUid}"]`).attr('data-message-uid', response.message_uid);
+                console.log('Message saved to database');
+            },
+            error: function (xhr, status, error) {
+                console.error('Error sending message:', error);
+                toastr.error('Failed to send message. Please try again.');
+            }
+        });
+    }
+}
+
+function resetTextareaHeight() {
+    const messageBox = $('.message_box');
+    messageBox.css('height', 'auto');
+    messageBox.css('height', '40px');
+}
+
+function scrollToBottom() {
+    const messagesContainer = document.getElementById('messagesContainer');
+    if (messagesContainer) {
+        requestAnimationFrame(() => {
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+            setTimeout(() => {
+                messagesContainer.scrollTop = messagesContainer.scrollHeight;
+            }, 100);
+        });
+    }
+}
+
+$('.message_box').on('input', function () {
+    this.style.height = 'auto';
+    const newHeight = Math.min(this.scrollHeight, 120);
+    this.style.height = newHeight + 'px';
+});
+
+
+
+function displayTextMessage(message, isSent, messageUid = null, seenStatus = false) {
+    const now = new Date();
+    const timeString = now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+
+    const messageClass = isSent ? 'sent_message' : 'received_message';
+    const alignClass = isSent ? 'items-end' : 'items-start';
+    const bgClass = isSent ? 'bg-blue-500 text-white rounded-2xl rounded-tr-none' : 'bg-[#843ffe] text-white rounded-2xl rounded-tl-none';
+
+    // Seen/Unseen indicator for sent messages - MOVE INSIDE TIME SPAN
+    const seenIndicator = isSent ? `
+        <i class="fas fa-check-double ${seenStatus ? 'text-blue-400' : 'text-gray-400'} text-xs ml-1" title="${seenStatus ? 'Seen' : 'Sent'}"></i>
+    ` : '';
+
+    const new_message = `
+        <div class="${messageClass}" data-message-uid="${messageUid || ''}">
+            <div class="flex flex-col gap-1 ${alignClass} cursor-pointer" onclick="toggleTime(this)">
+                <div class="${bgClass} px-4 py-2 max-w-md break-words">
+                    <p style="white-space: pre-wrap;" class="text-xs lg:text-sm">${escapeHtml(message)}</p>
+                </div>
+                <span class="text-xs text-gray-500 ${isSent ? 'mr-2' : 'ml-2'} hidden time flex items-center gap-1">
+                    ${timeString}
+                    ${seenIndicator}
+                </span>
+            </div>
+        </div>`;
+
+    $("#messagesContainer").append(new_message);
+    $(".empty_chat_area").remove();
+    
+    // Log for debugging
+    console.log(`Displayed ${isSent ? 'sent' : 'received'} message ${messageUid}, seen: ${seenStatus}`);
+}
+
+function displayFileMessage(fileData, isSent, messageText = '', messageUid = null, seenStatus = false) {
+    const now = new Date();
+    const timeString = now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+
+    const messageClass = isSent ? 'sent_message' : 'received_message';
+    const alignClass = isSent ? 'items-end' : 'items-start';
+    const bgClass = isSent ? 'bg-blue-500 text-white' : 'bg-[#843ffe] text-white';
+
+    // Seen/Unseen indicator for sent messages - MOVE INSIDE TIME SPAN
+    const seenIndicator = isSent ? `
+        <i class="fas fa-check-double ${seenStatus ? 'text-blue-400' : 'text-gray-400'} text-xs ml-1" title="${seenStatus ? 'Seen' : 'Sent'}"></i>
+    ` : '';
+
+    let fileContent = '';
+    if (fileData.file_type.startsWith('image/')) {
+        const imageRoundClass = messageText
+            ? 'rounded-t-2xl'
+            : (isSent ? 'rounded-2xl rounded-tr-none' : 'rounded-2xl rounded-tl-none');
+
+        fileContent = `
+            <img src="${fileData.file_url}" alt="Shared image" 
+                 class="w-full h-auto ${imageRoundClass} cursor-pointer file-preview"
+                 onclick="openFileModal('${fileData.file_url}', 'image')">
+        `;
+    } else {
+        const fileRoundClass = messageText
+            ? 'rounded-t-2xl'
+            : (isSent ? 'rounded-2xl rounded-tr-none' : 'rounded-2xl rounded-tl-none');
+
+        const icon = getFileIcon(fileData.file_type);
+        fileContent = `
+            <div class="flex items-center gap-0 p-3 ${bgClass} ${fileRoundClass}">
+                <div class="flex-shrink-0">
+                    ${icon}
+                </div>
+                <div class="flex-1 min-w-0">
+                    <p class="text-sm font-medium truncate">${fileData.original_name}</p>
+                    <a href="${fileData.file_url}" target="_blank" 
+                       class="text-xs underline hover:no-underline inline-block mt-1">
+                        Open file
+                    </a>
+                </div>
+            </div>
+        `;
+    }
+
+    const textContent = messageText ? `
+        <div class="${bgClass} px-4 py-2 ${isSent ? 'rounded-b-2xl rounded-tr-none' : 'rounded-b-2xl rounded-tl-none'} max-w-xs break-words">
+            <p style="white-space: pre-wrap;" class="text-xs lg:text-sm">${escapeHtml(messageText)}</p>
+        </div>
+    ` : '';
+
+    const new_message = `
+        <div class="${messageClass}" data-message-uid="${messageUid || ''}">
+            <div class="flex flex-col gap-0 ${alignClass} cursor-pointer" onclick="toggleTime(this)">
+                <div class="file-message min-w-[50px] max-w-[200px] lg:min-w-[120px] lg:max-w-[300px]">
+                    ${fileContent}
+                    ${textContent}
+                </div>
+                <span class="text-xs text-gray-500 ${isSent ? 'mr-2' : 'ml-2'} hidden time flex items-center gap-1">
+                    ${timeString}
+                    ${seenIndicator}
+                </span>
+            </div>
+        </div>`;
+
+    $("#messagesContainer").append(new_message);
+    $(".empty_chat_area").remove();
+    
+    // Log for debugging
+    console.log(`Displayed ${isSent ? 'sent' : 'received'} file message ${messageUid}, seen: ${seenStatus}`);
+}
+
+
+
+
+function displayFileMessage(fileData, isSent, messageText = '', messageUid = null, seenStatus = false) {
+    const now = new Date();
+    const timeString = now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+
+    const messageClass = isSent ? 'sent_message' : 'received_message';
+    const alignClass = isSent ? 'items-end' : 'items-start';
+    const bgClass = isSent ? 'bg-blue-500 text-white' : 'bg-[#843ffe] text-white';
+
+    // Seen/Unseen indicator
+    const seenIndicator = isSent ? `
+        <span class="seen-indicator ml-1" data-message-uid="${messageUid || ''}">
+            ${seenStatus ?
+            '<i class="fas fa-check-double text-blue-400 text-xs"></i>' :
+            '<i class="fas fa-check-double text-gray-400 text-xs"></i>'
+        }
+        </span>
+    ` : '';
+
+    let fileContent = '';
+    if (fileData.file_type.startsWith('image/')) {
+        const imageRoundClass = messageText
+            ? 'rounded-t-2xl'
+            : (isSent ? 'rounded-2xl rounded-tr-none' : 'rounded-2xl rounded-tl-none');
+
+        fileContent = `
+            <img src="${fileData.file_url}" alt="Shared image" 
+                 class="w-full h-auto ${imageRoundClass} cursor-pointer file-preview"
+                 onclick="openFileModal('${fileData.file_url}', 'image')">
+        `;
+    } else {
+        const fileRoundClass = messageText
+            ? 'rounded-t-2xl'
+            : (isSent ? 'rounded-2xl rounded-tr-none' : 'rounded-2xl rounded-tl-none');
+
+        const icon = getFileIcon(fileData.file_type);
+        fileContent = `
+            <div class="flex items-center gap-0 p-3 ${bgClass} ${fileRoundClass}">
+                <div class="flex-shrink-0">
+                    ${icon}
+                </div>
+                <div class="flex-1 min-w-0">
+                    <p class="text-sm font-medium truncate">${fileData.original_name}</p>
+                    <a href="${fileData.file_url}" target="_blank" 
+                       class="text-xs underline hover:no-underline inline-block mt-1">
+                        Open file
+                    </a>
+                </div>
+            </div>
+        `;
+    }
+
+    const textContent = messageText ? `
+        <div class="${bgClass} px-4 py-2 ${isSent ? 'rounded-b-2xl rounded-tr-none' : 'rounded-b-2xl rounded-tl-none'} max-w-xs break-words">
+            <p style="white-space: pre-wrap;" class="text-xs lg:text-sm">${escapeHtml(messageText)}</p>
+        </div>
+    ` : '';
+
+    const new_message = `
+        <div class="${messageClass}" data-message-uid="${messageUid || ''}">
+            <div class="flex flex-col gap-0 ${alignClass} cursor-pointer" onclick="toggleTime(this)">
+                <div class="file-message min-w-[50px] max-w-[200px] lg:min-w-[120px] lg:max-w-[300px]">
+                    ${fileContent}
+                    ${textContent}
+                </div>
+                <span class="text-xs text-gray-500 ${isSent ? 'mr-2' : 'ml-2'} hidden time flex items-center gap-1">
+                    ${timeString}
+                    ${seenIndicator}
+                </span>
+            </div>
+        </div>`;
+
+    $("#messagesContainer").append(new_message);
+    $(".empty_chat_area").remove();
+}
+
+
+
+
+function getFileIcon(fileType) {
+    if (fileType.includes('pdf')) {
+        return `<svg class="w-10 h-10 text-red-400" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M18.5,9H13V3.5L18.5,9M6,20V4H12V10H18V20H6Z"/>
+                </svg>`;
+    }
+
+    if (fileType.includes('word') || fileType.includes('document')) {
+        return `<svg class="w-10 h-10 text-blue-400" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M18,20H6V4H13V9H18V20M7,11H9L10,16L11,11H13L14,16L15,11H17L15,19H13L12,14L11,19H9L7,11Z"/>
+                </svg>`;
+    }
+
+    if (fileType.includes('powerpoint') || fileType.includes('presentation')) {
+        return `<svg class="w-10 h-10 text-orange-400" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M18,20H6V4H13V9H18V20M10,11V13H13V11H10M10,14V16H11V15H12V16H13V14H10Z"/>
+                </svg>`;
+    }
+
+    return `<svg class="w-10 h-10 text-gray-400" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M18,20H6V4H13V9H18V20M10,19L12,15H9V10H15V15L13,19H10Z"/>
+            </svg>`;
+}
+
+function openFileModal(url, type) {
+    const modal = $('#fileModal');
+    const modalContent = $('#modalContent');
+
+    if (type === 'image') {
+        modalContent.html(`<img src="${url}" class="max-w-full h-auto" alt="Preview">`);
+    }
+
+    modal.removeClass('hidden');
+}
+
+function closeFileModal() {
+    $('#fileModal').addClass('hidden');
+}
+
+function toggleTime(passedThis) {
+    let timeElement = $(passedThis).find('.time');
+    timeElement.toggleClass('hidden');
+}
+
+function insertEmoji(button) {
+    $('#emojiPicker').remove();
+    let emojiHtml = '<div id="emojiPicker" class="absolute bottom-full mb-2 right-0 bg-white border border-gray-300 rounded-lg shadow-lg p-2 grid grid-cols-10 gap-1 max-h-64 overflow-y-auto z-10" style="width: 320px;">';
+
+    emojis.forEach(emoji => {
+        emojiHtml += `<button class="emoji-btn text-2xl hover:bg-gray-100 rounded p-1 transition-colors" onclick="addEmojiToMessage('${emoji}')">${emoji}</button>`;
+    });
+    emojiHtml += '</div>';
+    $(button).parent().addClass('emoji-container').css('position', 'relative');
+    $(button).parent().append(emojiHtml);
+}
+
+function addEmojiToMessage(emoji) {
+    const messageBox = $('.message_box');
+    const currentText = messageBox.val();
+    const cursorPos = messageBox[0].selectionStart;
+
+    const newText = currentText.substring(0, cursorPos) + emoji + currentText.substring(cursorPos);
+    messageBox.val(newText);
+
+    const newCursorPos = cursorPos + emoji.length;
+    messageBox[0].setSelectionRange(newCursorPos, newCursorPos);
+    messageBox.focus();
+
+    $('#emojiPicker').remove();
+}
+
+function escapeHtml(text) {
+    const map = {
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#039;'
+    };
+    return text.replace(/[&<>"']/g, m => map[m]);
+}
+
+function showChatList() {
+    $(".chat_area").addClass('hidden');
+    $(".chat_list").removeClass("hidden");
+    $(".search_input_box").removeClass("hidden");
+    $(".chat_header").removeClass("hidden");
+}
+
+var emptyChat = `<div class="empty_chat_area text-center py-8">
+                    <svg class="w-32 h-32 mb-4 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                            d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                    </svg>
+                    <p class="text-lg font-medium">No messages yet</p>
+                    <p class="text-sm">Start a conversation by sending a message</p>
+                </div>`;
+
+
+
+function activateChat(passedThis) {
+    $('.chat_tab').removeClass('active_chat_tab');
+    $(passedThis).addClass('active_chat_tab');
+    let activated_user_img = $(passedThis).find('.chat_user_img').attr('src');
+    let activated_user_name = $(passedThis).find('.chat_user_name').html();
+    sending_to = $(passedThis).attr("data-userid");
+    $(".chat_area").removeClass('hidden');
+    $(".chat_list").addClass("hidden");
+    $(".search_input_box").addClass("hidden");
+    $(".chat_header").addClass("hidden");
+
+    $(".activated_user_img").attr('src', activated_user_img);
+    $(".activated_user_name").html(activated_user_name);
+    $(".activity").html('Active now');
+    $(".sending_to").val(sending_to);
+    $("#messagesContainer").html('');
+
+    $(passedThis).find(".unread_badge").addClass('hidden').text('0');
+
+    // Notify server that chat is opened
+    if (window.notifyChatOpened) {
+        window.notifyChatOpened(sending_to);
+    }
+    if (window.requestOnlineStatus) {
+        window.requestOnlineStatus(sending_to);
+    }
+
+    $.ajax({
+        url: '/fetch-chats',
+        type: 'POST',
+        data: {
+            'sending_to': sending_to,
+            '_token': csrf_token
+        },
+        success: function (response) {
+            $("#messagesContainer").html('');
+            $("#messagesContainer").addClass('opacity-0');
+
+            if (response.messages.length == 0) {
+                $("#messagesContainer").html(emptyChat);
+                return;
+            } else {
+                response.messages.forEach(message => {
+                    const isSent = message.sent_by == user_uid;
+                    const seenStatus = message.seen == 1;
+                    
+                    if (message.message_type == 'text') {
+                        displayTextMessage(message.main_message, isSent, message.message_uid, seenStatus);
+                    } else if (message.message_type == 'file') {
+                        const messageData = JSON.parse(message.main_message);
+                        displayFileMessage(messageData.file_data, isSent, messageData.message_text || '', message.message_uid, seenStatus);
+                    }
+                });
+            }
+
+            setTimeout(() => {
+                scrollToBottom();
+                $("#messagesContainer").removeClass('opacity-0');
+                
+                // Mark any unseen messages as seen
+                const unseenMessages = response.messages.filter(msg => 
+                    msg.sent_by === sending_to && msg.seen === 0
+                );
+                
+                if (unseenMessages.length > 0) {
+                    const unseenUids = unseenMessages.map(msg => msg.message_uid);
+                    console.log('Marking unseen messages as seen:', unseenUids);
+                    markMessagesAsSeenInBackend(unseenUids, sending_to);
+                }
+                
+                setTimeout(() => {
+                    scrollToBottom();
+                }, 200);
+            }, 10);
+        },
+        error: function (xhr, status, error) {
+            console.error('Error fetching messages:', error);
+        }
+    });
+}
+
+
+
+
+
+
+
+chat-websocket.js:
+// WebSocket connection
+let ws = null;
+let reconnectInterval = null;
+let typingTimeout = null;
+let isTyping = false;
+
+// Initialize WebSocket connection
+function initWebSocket() {
+    const userType = $('meta[name="user-type"]').attr('content');
+    const wsUrl = `ws://localhost:3000?userId=${user_uid}&userType=${userType}`;
+
+    ws = new WebSocket(wsUrl);
+
+    ws.onopen = function () {
+        console.log('WebSocket connected');
+        clearInterval(reconnectInterval);
+
+        if (sending_to) {
+            requestOnlineStatus(sending_to);
+        }
+
+        showConnectionStatus('connected');
+    };
+
+    ws.onmessage = function (event) {
+        try {
+            const data = JSON.parse(event.data);
+            handleWebSocketMessage(data);
+        } catch (error) {
+            console.error('Error parsing WebSocket message:', error);
+        }
+    };
+
+    ws.onerror = function (error) {
+        console.error('WebSocket error:', error);
+        showConnectionStatus('error');
+    };
+
+    ws.onclose = function () {
+        console.log('WebSocket disconnected');
+        showConnectionStatus('disconnected');
+
+        reconnectInterval = setInterval(function () {
+            console.log('Attempting to reconnect...');
+            initWebSocket();
+        }, 5000);
+    };
+}
+
+// Handle incoming WebSocket messages
+function handleWebSocketMessage(data) {
+    // console.log('WebSocket message:', data.type);
+
+    switch (data.type) {
+        case 'connected':
+            // console.log('Connected to server:', data.message);
+            break;
+
+        case 'new_message':
+            handleNewMessage(data);
+            break;
+
+        case 'user_typing':
+            handleUserTyping(data);
+            break;
+
+        case 'messages_seen':
+            handleMessagesSeen(data);
+            break;
+
+        case 'online_status':
+            handleOnlineStatus(data);
+            break;
+
+        case 'user_status_changed':
+            handleUserStatusChanged(data);
+            break;
+
+        case 'update_chat_list':
+            handleChatListUpdate(data);
+            break;
+
+        case 'pong':
+            // Heartbeat response
+            break;
+
+        default:
+            // console.log('Unknown message type:', data.type);
+    }
+}
+
+// Handle new incoming message (sent from server after DB save)
+function handleNewMessage(data) {
+    // console.log('New message received:', data);
+    
+    if (data.senderId === sending_to) {
+        // Message is from the currently active chat
+        const isSeen = data.seen || false;
+        
+        if (data.messageType === 'text') {
+            displayTextMessage(data.message, false, data.messageUid, isSeen);
+        } else if (data.messageType === 'file') {
+            displayFileMessage(data.fileData, false, data.messageText, data.messageUid, isSeen);
+        }
+        
+        scrollToBottom();
+        
+        // If message is not already marked as seen and chat is open, mark it as seen
+        if (!isSeen && data.chatIsOpen) {
+            // console.log('Auto-marking incoming message as seen:', data.messageUid);
+            markMessagesAsSeenInBackend([data.messageUid], data.senderId);
+        }
+    } else {
+        // Message is from another chat - update unread badge
+        updateUnreadBadge(data.senderId, 1);
+    }
+    
+    updateChatListItem(data.senderId, data);
+    playNotificationSound();
+}
+
+// Handle messages seen - update UI indicators
+function handleMessagesSeen(data) {
+    // console.log('Messages seen notification received:', data);
+    
+    // Update seen indicators for these messages
+    if (data.messageUids && Array.isArray(data.messageUids)) {
+        data.messageUids.forEach(uid => {
+            const messageElement = $(`[data-message-uid="${uid}"]`);
+            if (messageElement.length > 0) {
+                const seenIndicator = messageElement.find('.seen-indicator');
+                if (seenIndicator.length > 0) {
+                    // Update to blue checkmark for seen
+                    seenIndicator.html('<i class="fas fa-check-double text-blue-400 text-xs" title="Seen"></i>');
+                    // console.log(`Updated seen indicator for message: ${uid}`);
+                } else {
+                    // console.log(`No seen indicator found for message: ${uid}`);
+                }
+            } else {
+                // console.log(`Message element not found for UID: ${uid}`);
+            }
+        });
+    }
+}
+
+// Mark messages as seen in backend
+function markMessagesAsSeenInBackend(messageUids, senderId) {
+    $.ajax({
+        url: '/mark-messages-seen',
+        type: 'POST',
+        data: {
+            'message_uids': messageUids,
+            'sender_id': senderId,
+            '_token': csrf_token
+        },
+        success: function(response) {
+            // console.log('Messages marked as seen in database');
+        },
+        error: function(xhr, status, error) {
+            console.error('Error marking messages as seen:', error);
+        }
+    });
+}
+
+// Notify chat opened
+window.notifyChatOpened = function(withUserId) {
+    if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({
+            type: 'chat_opened',
+            withUserId: withUserId
+        }));
+    }
+}
+
+// Notify chat closed
+window.notifyChatClosed = function(withUserId) {
+    if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({
+            type: 'chat_closed',
+            withUserId: withUserId
+        }));
+    }
+}
+
+// Handle messages seen - update UI indicators
+function handleMessagesSeen(data) {
+    // console.log('Messages seen notification received:', data);
+    if (data.messageUids && Array.isArray(data.messageUids)) {
+        data.messageUids.forEach(uid => {
+            const messageElement = $(`[data-message-uid="${uid}"]`);
+            if (messageElement.length > 0) {
+                const seenIndicator = messageElement.find('.time-container i.fa-check-double');
+                if (seenIndicator.length > 0) {
+                    seenIndicator.removeClass('text-gray-400').addClass('text-blue-400');
+                    seenIndicator.attr('title', 'Seen');
+                    // console.log(`Updated seen indicator for message: ${uid}`);
+                } else {
+                    // console.log(`No seen indicator found for message: ${uid}`);
+                }
+            } else {
+                // console.log(`Message element not found for UID: ${uid}`);
+            }
+        });
+    }
+}
+// Update or add chat list item
+function updateChatListItem(userId, messageData) {
+    const sendingToType = $('meta[name="user-type"]').attr('content') === 'wholesaler' ? 'manufacturer' : 'wholesaler';
+
+    // Check if chat tab already exists
+    let chatTab = $(`.chat_tab[data-userid="${userId}"]`);
+
+    if (chatTab.length > 0) {
+        // Update existing chat tab
+        updateExistingChatTab(chatTab, messageData);
+
+        // Move to top
+        chatTab.prependTo('.chat_list');
+    } else {
+        // Create new chat tab
+        createNewChatTab(userId, sendingToType, messageData);
+    }
+}
+
+// Update existing chat tab
+function updateExistingChatTab(chatTab, messageData) {
+    const isSent = messageData.senderId === user_uid;
+
+    // Update last message
+    let lastMessageText = '';
+    let messageIcon = '';
+
+    if (messageData.messageType === 'text') {
+        lastMessageText = messageData.message.length > 40 ?
+            messageData.message.substring(0, 40) + '...' :
+            messageData.message;
+    } else if (messageData.messageType === 'file') {
+        messageIcon = '<i class="fas fa-file-alt"></i>';
+        lastMessageText = isSent ? 'File sent' : 'File received';
+    }
+
+    const lastMessageHtml = messageIcon ?
+        `${messageIcon} ${lastMessageText}` :
+        lastMessageText;
+
+    chatTab.find('.text-sm').html(lastMessageHtml);
+
+    // Update time
+    chatTab.find('.text-xs.text-gray-500').text('Just now');
+
+    // If message is from other user (not sent by current user), increment unread
+    if (!isSent && messageData.senderId !== user_uid) {
+        const badge = chatTab.find('.unread_badge');
+        const currentCount = parseInt(badge.text()) || 0;
+        badge.removeClass('hidden').text(currentCount + 1);
+    }
+}
+
+// Create new chat tab
+function createNewChatTab(userId, sendingToType, messageData) {
+    $.ajax({
+        url: '/get-chat-list-item',
+        type: 'POST',
+        data: {
+            'user_id': userId,
+            'sending_to_type': sendingToType,
+            'current_user_id': user_uid,
+            '_token': csrf_token
+        },
+        success: function (response) {
+            if (response.status === 'success') {
+                const user = response.user;
+
+                const chatTabHtml = `
+                    <div class="chat_tab inactive_chat_tab" data-userid="${user.id}" onclick="activateChat(this)">
+                        <img src="${user.profile_picture}" alt="${user.name}"
+                            class="w-12 h-12 rounded-full chat_user_img object-cover"
+                            onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(user.name)}&background=3b82f6&color=fff'">
+                        <div class="flex-1 min-w-0">
+                            <div class="flex justify-between items-baseline">
+                                <h3 class="font-semibold text-gray-900 truncate chat_user_name">
+                                    ${user.name}
+                                </h3>
+                                <span class="text-xs text-gray-500">Just now</span>
+                            </div>
+                            <p class="text-sm text-gray-600 truncate">
+                                ${user.message_icon} ${user.last_message}
+                            </p>
+                        </div>
+                        <span class="unread_badge ${user.unseen_count > 0 ? '' : 'hidden'}">${user.unseen_count}</span>
+                    </div>
+                `;
+
+                $('.chat_list').prepend(chatTabHtml);
+            }
+        },
+        error: function (xhr, status, error) {
+            console.error('Error fetching chat list item:', error);
+        }
+    });
+}
+
+// Handle typing indicator
+function handleUserTyping(data) {
+    if (data.senderId === sending_to) {
+        if (data.isTyping) {
+            showTypingIndicator();
+        } else {
+            hideTypingIndicator();
+        }
+    }
+}
+
+
+
+// Handle online status response
+function handleOnlineStatus(data) {
+    if (data.userId === sending_to) {
+        updateUserOnlineStatus(data.isOnline);
+    }
+}
+
+// Handle user status change
+function handleUserStatusChanged(data) {
+    updateChatListOnlineStatus(data.userId, data.isOnline);
+
+    if (data.userId === sending_to) {
+        updateUserOnlineStatus(data.isOnline);
+    }
+}
+
+// Handle chat list update
+function handleChatListUpdate(data) {
+    refreshUnreadCount(data.fromUserId);
+    moveToTopOfChatList(data.fromUserId);
+}
+
+// Send typing indicator
+window.sendTypingIndicator = function () {
+    if (ws && ws.readyState === WebSocket.OPEN && sending_to) {
+        ws.send(JSON.stringify({
+            type: 'typing',
+            receiverId: sending_to
+        }));
+    }
+}
+
+// Send stop typing indicator
+window.sendStopTypingIndicator = function () {
+    if (ws && ws.readyState === WebSocket.OPEN && sending_to) {
+        ws.send(JSON.stringify({
+            type: 'stop_typing',
+            receiverId: sending_to
+        }));
+    }
+}
+
+// Send message seen notification
+function sendMessageSeen(senderId, messageUids) {
+    if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({
+            type: 'message_seen',
+            receiverId: senderId,
+            messageUids: messageUids
+        }));
+    }
+}
+
+// Request online status
+window.requestOnlineStatus = function (userId) {
+    if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({
+            type: 'get_online_status',
+            checkUserId: userId
+        }));
+    }
+}
+
+// Notify chat opened
+window.notifyChatOpened = function (withUserId) {
+    if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({
+            type: 'chat_opened',
+            withUserId: withUserId
+        }));
+    }
+}
+
+// UI Helper Functions
+function showTypingIndicator() {
+    const typingHtml = `
+        <div class="typing-indicator flex items-start gap-3">
+            <div class="bg-gray-200 rounded-2xl rounded-tl-none px-4 py-2">
+                <div class="flex gap-1">
+                    <span class="w-2 h-2 bg-gray-500 rounded-full animate-bounce" style="animation-delay: 0s"></span>
+                    <span class="w-2 h-2 bg-gray-500 rounded-full animate-bounce" style="animation-delay: 0.2s"></span>
+                    <span class="w-2 h-2 bg-gray-500 rounded-full animate-bounce" style="animation-delay: 0.4s"></span>
+                </div>
+            </div>
+        </div>
+    `;
+
+    $('.typing-indicator').remove();
+    $('#messagesContainer').append(typingHtml);
+    scrollToBottom();
+}
+
+function hideTypingIndicator() {
+    $('.typing-indicator').remove();
+}
+
+function updateUserOnlineStatus(isOnline) {
+    const statusText = isOnline ? 'Online now' : 'Offline';
+    $('.activity').html(statusText);
+
+    if (isOnline) {
+        $('.activity').removeClass('text-gray-500').addClass('text-green-600');
+    } else {
+        $('.activity').removeClass('text-green-600').addClass('text-gray-500');
+    }
+}
+
+function updateChatListOnlineStatus(userId, isOnline) {
+    const chatTab = $(`.chat_tab[data-userid="${userId}"]`);
+    if (chatTab.length > 0) {
+        if (isOnline) {
+            chatTab.find('.chat_user_img').addClass('ring-2 ring-green-500');
+        } else {
+            chatTab.find('.chat_user_img').removeClass('ring-2 ring-green-500');
+        }
+    }
+}
+
+function updateUnreadBadge(userId, increment) {
+    const badge = $(`.chat_tab[data-userid="${userId}"] .unread_badge`);
+    if (badge.length > 0) {
+        const currentCount = parseInt(badge.text()) || 0;
+        const newCount = currentCount + increment;
+
+        if (newCount > 0) {
+            badge.removeClass('hidden').text(newCount);
+        }
+    }
+}
+
+function refreshUnreadCount(userId) {
+    $.ajax({
+        url: '/get-unread-count',
+        type: 'POST',
+        data: {
+            'user_id': userId,
+            '_token': csrf_token
+        },
+        success: function (response) {
+            if (response.count > 0) {
+                const badge = $(`.chat_tab[data-userid="${userId}"] .unread_badge`);
+                badge.removeClass('hidden').text(response.count);
+            }
+        }
+    });
+}
+
+function moveToTopOfChatList(userId) {
+    const chatTab = $(`.chat_tab[data-userid="${userId}"]`);
+    if (chatTab.length > 0) {
+        chatTab.prependTo('.chat_list');
+    }
+}
+
+function showConnectionStatus(status) {
+    let color = 'gray';
+    let text = 'Connecting...';
+
+    if (status === 'connected') {
+        color = 'green';
+        text = 'Connected';
+    } else if (status === 'error' || status === 'disconnected') {
+        color = 'red';
+        text = 'Disconnected';
+    }
+
+    // console.log(`Connection status: ${text}`);
+}
+
+function playNotificationSound() {
+    // Optional: Play notification sound
+    // const audio = new Audio('/sounds/notification.mp3');
+    // audio.play();
+}
+
+// Handle typing in message box
+$('.message_box').on('input', function () {
+    this.style.height = 'auto';
+    const newHeight = Math.min(this.scrollHeight, 120);
+    this.style.height = newHeight + 'px';
+
+    if (!isTyping && sending_to) {
+        isTyping = true;
+        window.sendTypingIndicator();
+    }
+
+    clearTimeout(typingTimeout);
+
+    typingTimeout = setTimeout(function () {
+        isTyping = false;
+        window.sendStopTypingIndicator();
+    }, 1000);
+});
+
+// Update last active periodically
+setInterval(function () {
+    if (user_uid) {
+        $.ajax({
+            url: '/update-last-active',
+            type: 'POST',
+            data: {
+                '_token': csrf_token
+            },
+            success: function (response) {
+                // Last active updated
+            }
+        });
+    }
+}, 60000); // Update every minute
+
+// Initialize WebSocket on page load
+$(document).ready(function () {
+    initWebSocket();
+});
+
+
+
+
+
+server.js:
+import express from 'express';
+import { WebSocketServer } from 'ws';
+import http from 'http';
+import cors from 'cors';
+
+const app = express();
+const port = 3000;
+
+app.use(cors());
+app.use(express.json());
+
+const server = http.createServer(app);
+
+const wss = new WebSocketServer({ 
+    server,
+    clientTracking: true,
+    // Add connection timeout handling
+    perMessageDeflate: false
+});
+
+// Store clients by user ID with additional metadata
+const clients = new Map();
+
+// Track last active timestamps
+const lastActive = new Map();
+
+// Track typing status
+const typingStatus = new Map();
+
+// Track which users have which chats open
+const activeChats = new Map(); // userId => Set of chat partner IDs
+
+// Track connection attempts to prevent spam
+const connectionAttempts = new Map();
+const MAX_CONNECTION_ATTEMPTS = 5;
+const CONNECTION_TIMEOUT = 30000; // 30 seconds
+
+wss.on('connection', (ws, req) => {
+    const url = new URL(req.url, `ws://${req.headers.host}`);
+    const userId = url.searchParams.get('userId');
+    const userType = url.searchParams.get('userType');
+
+    if (!userId || !userType) {
+        ws.close(1008, 'User ID and Type required');
+        return;
+    }
+
+    // Check for connection spam
+    const now = Date.now();
+    const attempts = connectionAttempts.get(userId) || [];
+    const recentAttempts = attempts.filter(time => now - time < CONNECTION_TIMEOUT);
+    
+    if (recentAttempts.length >= MAX_CONNECTION_ATTEMPTS) {
+        console.log(`🚫 Blocking connection spam from user: ${userId}`);
+        ws.close(1008, 'Too many connection attempts');
+        return;
+    }
+
+    // Record this connection attempt
+    recentAttempts.push(now);
+    connectionAttempts.set(userId, recentAttempts);
+
+    console.log(`✅ New client connected: ${userId} (${userType})`);
+    
+    // Close any existing connection for this user
+    if (clients.has(userId)) {
+        const oldClient = clients.get(userId);
+        if (oldClient.ws.readyState === 1) {
+            oldClient.ws.close(1000, 'New connection established');
+        }
+        clients.delete(userId);
+    }
+    
+    clients.set(userId, {
+        ws,
+        userType,
+        connectedAt: new Date(),
+        ip: req.socket.remoteAddress
+    });
+    
+    lastActive.set(userId, new Date());
+    
+    // Initialize active chats set for this user
+    if (!activeChats.has(userId)) {
+        activeChats.set(userId, new Set());
+    }
+
+    // Set up heartbeat
+    const heartbeatInterval = setInterval(() => {
+        if (ws.readyState === 1) {
+            ws.ping();
+        }
+    }, 30000);
+
+    ws.on('pong', () => {
+        lastActive.set(userId, new Date());
+    });
+
+    try {
+        ws.send(JSON.stringify({
+            type: 'connected',
+            message: 'Connected to chat server',
+            userId: userId,
+            timestamp: new Date().toISOString()
+        }));
+    } catch (error) {
+        console.error(`❌ Error sending connection confirmation to ${userId}:`, error);
+    }
+
+    broadcastOnlineStatus(userId);
+
+    ws.on('message', (message) => {
+        try {
+            const data = JSON.parse(message);
+            console.log(`📨 Received from ${userId}:`, data.type);
+
+            lastActive.set(userId, new Date());
+
+            switch (data.type) {
+                case 'typing':
+                    handleTyping(userId, data);
+                    break;
+
+                case 'stop_typing':
+                    handleStopTyping(userId, data);
+                    break;
+
+                case 'message_seen':
+                    handleMessageSeen(userId, data);
+                    break;
+
+                case 'get_online_status':
+                    sendOnlineStatus(userId, data.checkUserId);
+                    break;
+
+                case 'ping':
+                    ws.send(JSON.stringify({
+                        type: 'pong',
+                        timestamp: new Date().toISOString()
+                    }));
+                    break;
+
+                case 'chat_opened':
+                    handleChatOpened(userId, data);
+                    break;
+
+                case 'chat_closed':
+                    handleChatClosed(userId, data);
+                    break;
+
+                default:
+                    console.warn('Unknown message type:', data.type);
+            }
+        } catch (error) {
+            console.error('Error processing message:', error);
+        }
+    });
+
+    ws.on('close', (code, reason) => {
+        console.log(`❌ Client disconnected: ${userId} (Code: ${code}, Reason: ${reason})`);
+        clearInterval(heartbeatInterval);
+        clients.delete(userId);
+        lastActive.delete(userId);
+        typingStatus.delete(userId);
+        activeChats.delete(userId);
+        broadcastOnlineStatus(userId, true);
+    });
+
+    ws.on('error', (error) => {
+        console.error(`💥 WebSocket error for user ${userId}:`, error);
+        clearInterval(heartbeatInterval);
+    });
+
+    // Handle connection timeout
+    ws.on('timeout', () => {
+        console.log(`⏰ Connection timeout for user ${userId}`);
+        ws.close(1001, 'Connection timeout');
+    });
+});
+
+// HTTP endpoint to receive notifications from Laravel backend
+app.post('/api/notify', (req, res) => {
+    try {
+        const data = req.body;
+        console.log('📩 Received notification from backend:', data.type);
+
+        switch (data.type) {
+            case 'new_text_message':
+                notifyNewTextMessage(data);
+                break;
+
+            case 'new_file_message':
+                notifyNewFileMessage(data);
+                break;
+
+            case 'messages_marked_seen':
+                notifyMessagesSeen(data);
+                break;
+
+            case 'user_activity':
+                updateUserActivity(data);
+                break;
+
+            default:
+                console.warn('Unknown notification type:', data.type);
+        }
+
+        res.json({ status: 'success', message: 'Notification processed' });
+    } catch (error) {
+        console.error('Error processing notification:', error);
+        res.status(500).json({ status: 'error', message: error.message });
+    }
+});
+
+// Enhanced active chat tracking
+function isChatActive(userId, withUserId) {
+    if (!activeChats.has(userId)) {
+        console.log(`📱 No active chats found for user ${userId}`);
+        return false;
+    }
+    
+    const isActive = activeChats.get(userId).has(withUserId);
+    console.log(`💬 Chat active check: ${userId} with ${withUserId} = ${isActive}`);
+    
+    return isActive;
+}
+
+// Handle chat opened - track active chat
+function handleChatOpened(userId, data) {
+    const { withUserId } = data;
+    
+    if (!withUserId) return;
+
+    // Add to active chats
+    if (!activeChats.has(userId)) {
+        activeChats.set(userId, new Set());
+    }
+    activeChats.get(userId).add(withUserId);
+
+    console.log(`🔓 User ${userId} opened chat with ${withUserId}`);
+}
+
+// Handle chat closed - remove from active chats
+function handleChatClosed(userId, data) {
+    const { withUserId } = data;
+    
+    if (!withUserId) return;
+
+    // Remove from active chats
+    if (activeChats.has(userId)) {
+        activeChats.get(userId).delete(withUserId);
+    }
+
+    console.log(`🔒 User ${userId} closed chat with ${withUserId}`);
+}
+
+// Notify about new text message (called by Laravel after DB save)
+async function notifyNewTextMessage(data) {
+    const { senderId, receiverId, message, messageUid, timestamp } = data;
+    
+    if (!receiverId || !message) {
+        console.warn('Invalid message data');
+        return;
+    }
+
+    // Check if receiver has chat open with sender
+    const chatIsOpen = isChatActive(receiverId, senderId);
+    console.log(`📨 Text message from ${senderId} to ${receiverId}, chat open: ${chatIsOpen}`);
+
+    // Get sender info for notification
+    const senderInfo = await getUserInfoForNotification(senderId, getSenderType(senderId));
+
+    // Send to receiver if online
+    if (clients.has(receiverId)) {
+        const receiver = clients.get(receiverId);
+        if (receiver.ws.readyState === 1) {
+            const messageData = {
+                type: 'new_message',
+                messageType: 'text',
+                senderId: senderId,
+                senderName: senderInfo.senderName,
+                profilePicture: senderInfo.profilePicture,
+                receiverId: receiverId,
+                message: message,
+                messageUid: messageUid,
+                timestamp: timestamp,
+                seen: chatIsOpen,
+                chatIsOpen: chatIsOpen
+            };
+
+            try {
+                receiver.ws.send(JSON.stringify(messageData));
+                console.log(`✅ Text message notification sent to ${receiverId}`);
+            } catch (error) {
+                console.error(`❌ Failed to send text message to ${receiverId}:`, error);
+                clients.delete(receiverId); // Remove broken connection
+            }
+
+            updateChatList(receiverId, senderId);
+            
+            // If chat is open, automatically mark as seen
+            if (chatIsOpen) {
+                console.log(`👁️ Auto-marking text message ${messageUid} as seen`);
+                
+                // Notify sender that message was seen
+                setTimeout(() => {
+                    if (clients.has(senderId)) {
+                        const sender = clients.get(senderId);
+                        if (sender.ws.readyState === 1) {
+                            try {
+                                sender.ws.send(JSON.stringify({
+                                    type: 'messages_seen',
+                                    senderId: receiverId,
+                                    messageUids: [messageUid],
+                                    timestamp: new Date().toISOString(),
+                                    autoSeen: true
+                                }));
+                                console.log(`✅ Auto-seen notification sent to sender ${senderId}`);
+                            } catch (error) {
+                                console.error(`❌ Failed to send auto-seen to ${senderId}:`, error);
+                            }
+                        }
+                    }
+                }, 100);
+            }
+        }
+    } else {
+        console.log(`❌ Receiver ${receiverId} is offline, message stored for later`);
+    }
+}
+
+// Notify about new file message (called by Laravel after DB save)
+async function notifyNewFileMessage(data) {
+    const { senderId, receiverId, fileData, messageText, messageUid, timestamp } = data;
+    
+    if (!receiverId || !fileData) {
+        console.warn('Invalid file message data');
+        return;
+    }
+
+    // Check if receiver has chat open with sender
+    const chatIsOpen = isChatActive(receiverId, senderId);
+    console.log(`📎 File message from ${senderId} to ${receiverId}, chat open: ${chatIsOpen}`);
+
+    // Get sender info for notification
+    const senderInfo = await getUserInfoForNotification(senderId, getSenderType(senderId));
+
+    // Send to receiver if online
+    if (clients.has(receiverId)) {
+        const receiver = clients.get(receiverId);
+        if (receiver.ws.readyState === 1) {
+            const messageData = {
+                type: 'new_message',
+                messageType: 'file',
+                senderId: senderId,
+                senderName: senderInfo.senderName,
+                profilePicture: senderInfo.profilePicture,
+                receiverId: receiverId,
+                fileData: fileData,
+                messageText: messageText || '',
+                messageUid: messageUid,
+                timestamp: timestamp,
+                seen: chatIsOpen,
+                chatIsOpen: chatIsOpen
+            };
+
+            try {
+                receiver.ws.send(JSON.stringify(messageData));
+                console.log(`✅ File message notification sent to ${receiverId}`);
+            } catch (error) {
+                console.error(`❌ Failed to send file message to ${receiverId}:`, error);
+                clients.delete(receiverId); // Remove broken connection
+            }
+
+            updateChatList(receiverId, senderId);
+            
+            // If chat is open, automatically mark as seen
+            if (chatIsOpen) {
+                console.log(`👁️ Auto-marking file message ${messageUid} as seen`);
+                
+                // Notify sender that message was seen
+                setTimeout(() => {
+                    if (clients.has(senderId)) {
+                        const sender = clients.get(senderId);
+                        if (sender.ws.readyState === 1) {
+                            try {
+                                sender.ws.send(JSON.stringify({
+                                    type: 'messages_seen',
+                                    senderId: receiverId,
+                                    messageUids: [messageUid],
+                                    timestamp: new Date().toISOString(),
+                                    autoSeen: true
+                                }));
+                                console.log(`✅ Auto-seen notification sent to sender ${senderId}`);
+                            } catch (error) {
+                                console.error(`❌ Failed to send auto-seen to ${senderId}:`, error);
+                            }
+                        }
+                    }
+                }, 100);
+            }
+        }
+    } else {
+        console.log(`❌ Receiver ${receiverId} is offline, file message stored for later`);
+    }
+}
+
+// Notify about messages being seen (called by Laravel)
+function notifyMessagesSeen(data) {
+    const { senderId, receiverId, messageUids } = data;
+    
+    if (!receiverId || !messageUids) {
+        console.warn('Invalid messages seen data');
+        return;
+    }
+
+    console.log(`👀 Notifying ${receiverId} that messages were seen by ${senderId}`);
+
+    // Notify the original sender that their messages were seen
+    if (clients.has(receiverId)) {
+        const receiver = clients.get(receiverId);
+        if (receiver.ws.readyState === 1) {
+            try {
+                receiver.ws.send(JSON.stringify({
+                    type: 'messages_seen',
+                    senderId: senderId,
+                    messageUids: messageUids,
+                    timestamp: new Date().toISOString()
+                }));
+                console.log(`✅ Messages seen notification sent to ${receiverId}`);
+            } catch (error) {
+                console.error(`❌ Failed to send messages seen to ${receiverId}:`, error);
+                clients.delete(receiverId);
+            }
+        }
+    }
+}
+
+// Update user activity
+function updateUserActivity(data) {
+    const { userId } = data;
+    lastActive.set(userId, new Date());
+    console.log(`🔄 User activity updated: ${userId}`);
+}
+
+// Handle typing indicator
+function handleTyping(senderId, data) {
+    const { receiverId } = data;
+    
+    if (!receiverId) return;
+
+    typingStatus.set(`${senderId}_${receiverId}`, true);
+
+    if (clients.has(receiverId)) {
+        const receiver = clients.get(receiverId);
+        if (receiver.ws.readyState === 1) {
+            try {
+                receiver.ws.send(JSON.stringify({
+                    type: 'user_typing',
+                    senderId: senderId,
+                    isTyping: true
+                }));
+            } catch (error) {
+                console.error(`❌ Failed to send typing indicator to ${receiverId}:`, error);
+            }
+        }
+    }
+}
+
+// Handle stop typing
+function handleStopTyping(senderId, data) {
+    const { receiverId } = data;
+    
+    if (!receiverId) return;
+
+    typingStatus.delete(`${senderId}_${receiverId}`);
+
+    if (clients.has(receiverId)) {
+        const receiver = clients.get(receiverId);
+        if (receiver.ws.readyState === 1) {
+            try {
+                receiver.ws.send(JSON.stringify({
+                    type: 'user_typing',
+                    senderId: senderId,
+                    isTyping: false
+                }));
+            } catch (error) {
+                console.error(`❌ Failed to send stop typing to ${receiverId}:`, error);
+            }
+        }
+    }
+}
+
+// Handle message seen (sent from client)
+function handleMessageSeen(senderId, data) {
+    const { receiverId, messageUids } = data;
+    
+    if (!receiverId) return;
+
+    console.log(`👀 User ${senderId} marked messages as seen for ${receiverId}`);
+
+    // Notify the sender that their messages were seen
+    if (clients.has(receiverId)) {
+        const receiver = clients.get(receiverId);
+        if (receiver.ws.readyState === 1) {
+            try {
+                receiver.ws.send(JSON.stringify({
+                    type: 'messages_seen',
+                    senderId: senderId,
+                    messageUids: messageUids,
+                    timestamp: new Date().toISOString()
+                }));
+            } catch (error) {
+                console.error(`❌ Failed to send message seen to ${receiverId}:`, error);
+            }
+        }
+    }
+}
+
+// Update chat list
+function updateChatList(userId, newMessageFrom) {
+    if (clients.has(userId)) {
+        const user = clients.get(userId);
+        if (user.ws.readyState === 1) {
+            try {
+                user.ws.send(JSON.stringify({
+                    type: 'update_chat_list',
+                    fromUserId: newMessageFrom,
+                    timestamp: new Date().toISOString()
+                }));
+            } catch (error) {
+                console.error(`❌ Failed to update chat list for ${userId}:`, error);
+            }
+        }
+    }
+}
+
+// Send online status for specific user
+function sendOnlineStatus(requesterId, checkUserId) {
+    if (!clients.has(requesterId)) return;
+
+    const requester = clients.get(requesterId);
+    const isOnline = clients.has(checkUserId);
+    
+    let lastActiveTime = null;
+    if (!isOnline && lastActive.has(checkUserId)) {
+        lastActiveTime = lastActive.get(checkUserId).toISOString();
+    }
+
+    if (requester.ws.readyState === 1) {
+        try {
+            requester.ws.send(JSON.stringify({
+                type: 'online_status',
+                userId: checkUserId,
+                isOnline: isOnline,
+                lastActive: lastActiveTime,
+                timestamp: new Date().toISOString()
+            }));
+        } catch (error) {
+            console.error(`❌ Failed to send online status to ${requesterId}:`, error);
+        }
+    }
+}
+
+// Broadcast online status change
+function broadcastOnlineStatus(userId, isDisconnect = false) {
+    const payload = {
+        type: 'user_status_changed',
+        userId: userId,
+        isOnline: !isDisconnect,
+        timestamp: new Date().toISOString()
+    };
+
+    clients.forEach((client, clientId) => {
+        if (client.ws.readyState === 1 && clientId !== userId) {
+            try {
+                client.ws.send(JSON.stringify(payload));
+            } catch (error) {
+                console.error(`❌ Failed to broadcast status to ${clientId}:`, error);
+            }
+        }
+    });
+}
+
+// Helper function to determine sender type based on ID pattern
+function getSenderType(userId) {
+    if (userId.startsWith('WS_') || userId.includes('wholesaler')) {
+        return 'wholesaler';
+    } else if (userId.startsWith('MN_') || userId.includes('manufacturer')) {
+        return 'manufacturer';
+    }
+    return 'unknown';
+}
+
+// Function to get user info for notifications
+async function getUserInfoForNotification(userId, userType) {
+    try {
+        let senderName = 'User';
+        let profilePicture = null;
+        
+        // Based on your user ID patterns
+        if (userType === 'wholesaler') {
+            senderName = 'Wholesaler';
+        } else if (userType === 'manufacturer') {
+            senderName = 'Manufacturer';
+        }
+        
+        // Generate avatar
+        profilePicture = `https://ui-avatars.com/api/?name=${encodeURIComponent(senderName)}&background=3b82f6&color=fff`;
+        
+        return {
+            senderName: senderName,
+            profilePicture: profilePicture
+        };
+        
+    } catch (error) {
+        console.error('Error getting user info for notification:', error);
+        return {
+            senderName: 'User',
+            profilePicture: 'https://ui-avatars.com/api/?name=User&background=3b82f6&color=fff'
+        };
+    }
+}
+
+// Clean up old connection attempts periodically
+setInterval(() => {
+    const now = Date.now();
+    connectionAttempts.forEach((attempts, userId) => {
+        const recentAttempts = attempts.filter(time => now - time < CONNECTION_TIMEOUT);
+        if (recentAttempts.length === 0) {
+            connectionAttempts.delete(userId);
+        } else {
+            connectionAttempts.set(userId, recentAttempts);
+        }
+    });
+}, 60000); // Clean every minute
+
+// Heartbeat to detect inactive connections
+setInterval(() => {
+    const now = new Date();
+    const inactiveThreshold = 1000 * 60 * 15; // 15 minutes
+    
+    clients.forEach((client, userId) => {
+        const lastActiveTime = lastActive.get(userId);
+        if (lastActiveTime && (now - lastActiveTime) > inactiveThreshold) {
+            console.log(`💤 Closing inactive connection for ${userId}`);
+            try {
+                client.ws.close(1000, 'Inactive connection');
+            } catch (error) {
+                console.error(`❌ Error closing inactive connection for ${userId}:`, error);
+            }
+        }
+    });
+}, 1000 * 60); // Check every minute
+
+// Health check endpoint
+app.get('/health', (req, res) => {
+    res.json({
+        status: 'ok',
+        connectedClients: clients.size,
+        activeChats: activeChats.size,
+        timestamp: new Date().toISOString(),
+        memoryUsage: process.memoryUsage(),
+        uptime: process.uptime()
+    });
+});
+
+// Debug endpoint to see active chats
+app.get('/debug/active-chats', (req, res) => {
+    const activeChatsObj = {};
+    activeChats.forEach((chatSet, userId) => {
+        activeChatsObj[userId] = Array.from(chatSet);
+    });
+    
+    res.json({
+        activeChats: activeChatsObj,
+        connectedClients: Array.from(clients.keys()),
+        timestamp: new Date().toISOString()
+    });
+});
+
+// Server status endpoint
+app.get('/status', (req, res) => {
+    res.json({
+        server: 'WebSocket Chat Server',
+        status: 'running',
+        port: port,
+        connectedClients: clients.size,
+        uptime: process.uptime(),
+        timestamp: new Date().toISOString()
+    });
+});
+
+// Start server
+server.listen(port, '0.0.0.0', () => {
+    console.log(`🚀 WebSocket server running on ws://localhost:${port}`);
+    console.log(`🌐 HTTP API available at http://localhost:${port}`);
+    console.log(`❤️ Health check available at http://localhost:${port}/health`);
+    console.log(`📊 Server status at http://localhost:${port}/status`);
+});
+
+// Handle uncaught exceptions
+process.on('uncaughtException', (error) => {
+    console.error('💥 Uncaught Exception:', error);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+    console.error('💥 Unhandled Rejection at:', promise, 'reason:', reason);
+});
+
+// Graceful shutdown
+process.on('SIGTERM', () => {
+    console.log('🛑 Shutting down WebSocket server...');
+    
+    clients.forEach((client) => {
+        try {
+            client.ws.close(1001, 'Server shutting down');
+        } catch (error) {
+            console.error('Error closing client connection:', error);
+        }
+    });
+    
+    wss.close(() => {
+        server.close(() => {
+            console.log('✅ WebSocket server closed gracefully');
+            process.exit(0);
+        });
+    });
+});
+
+
+
+
+
+the website main app.blade.php file:
+<!doctype html>
+<html lang="en" class="main_html">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css" rel="stylesheet">
+
+    <link rel="icon" href="{{ $website_icon }}" type="image/x-icon">
+
+    <!-- SweetAlert2 CSS -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css">
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.js"></script>
+
+    @vite('resources/css/app.css')
+    {{-- <link rel="stylesheet" href="/assets/css/tailwind.css"> --}}
+    <link rel="stylesheet" href="/assets/css/styles.css">
+
+    <!-- Add user meta tags for WebSocket -->
+    @auth
+        @if (auth()->guard('wholesaler')->check())
+            <meta name="user-id" content="{{ auth()->guard('wholesaler')->user()->wholesaler_uid }}">
+            <meta name="user-type" content="wholesaler">
+            <meta name="user-name" content="{{ auth()->guard('wholesaler')->user()->company_name }}">
+        @elseif(auth()->guard('manufacturer')->check())
+            <meta name="user-id" content="{{ auth()->guard('manufacturer')->user()->manufacturer_uid }}">
+            <meta name="user-type" content="manufacturer">
+            <meta name="user-name" content="{{ auth()->guard('manufacturer')->user()->company_name_en }}">
+        @endif
+    @endauth
+
+    @yield('style')
+    <title>{{ $brandname }} — @yield('title')</title>
+</head>
+
+<body class="bg-white dark:bg-gray-950">
+    @include('layouts.surface.header')
+
+    @yield('content')
+
+    @include('layouts.surface.footer')
+
+
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"
+        integrity="sha256-/JqT3SQfawRcv/BIHPThkBvs0OEvtFFmqPF/lYI/Cxo=" crossorigin="anonymous"></script>
+
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.all.min.js"></script>
+    <script src="/assets/js/index.js"></script>
+
+    <script type="text/javascript">
+        function googleTranslateElementInit() {
+            new google.translate.TranslateElement({
+                pageLanguage: 'en',
+                includedLanguages: 'en,es,fr,de,it,pt,ru,zh-CN,ja,ko,ar,hi,vi,th,tr,nl,pl',
+                layout: google.translate.TranslateElement.InlineLayout.SIMPLE,
+                autoDisplay: false
+            }, 'gLang');
+
+            setTimeout(function() {
+                const googleBanner = document.querySelector('.goog-te-banner-frame');
+                if (googleBanner) {
+                    googleBanner.style.display = 'none';
+                }
+
+                const body = document.querySelector('body');
+                if (body) {
+                    body.style.top = '0px';
+                }
+            }, 100);
+        }
+    </script>
+    <script type="text/javascript" src="https://translate.google.com/translate_a/element.js?cb=googleTranslateElementInit">
+    </script>
+
+    <script>
+        // SweetAlert2 notifications
+        @if (Session::has('success'))
+            Swal.fire({
+                icon: 'success',
+                title: 'Success!',
+                text: "{{ Session::get('success') }}",
+                timer: 3000,
+                showConfirmButton: false
+            });
+        @endif
+
+        @if (Session::has('error'))
+            Swal.fire({
+                icon: 'error',
+                title: 'Error!',
+                text: "{{ Session::get('error') }}",
+                timer: 4000,
+                showConfirmButton: true
+            });
+        @endif
+
+        @if (Session::has('info'))
+            Swal.fire({
+                icon: 'info',
+                title: 'Information',
+                text: "{{ Session::get('info') }}",
+                timer: 3000,
+                showConfirmButton: false
+            });
+        @endif
+
+        @if (Session::has('warning'))
+            Swal.fire({
+                icon: 'warning',
+                title: 'Warning!',
+                text: "{{ Session::get('warning') }}",
+                timer: 4000,
+                showConfirmButton: true
+            });
+        @endif
+
+        // Handle language change events
+        document.addEventListener('DOMContentLoaded', function() {
+            // Restore body position after translation
+            const restoreBodyPosition = function() {
+                const body = document.querySelector('body');
+                if (body) {
+                    body.style.top = '0px';
+                }
+
+                // Hide the Google banner
+                const googleBanner = document.querySelector('.goog-te-banner-frame');
+                if (googleBanner) {
+                    googleBanner.style.display = 'none';
+                }
+            };
+
+            // Set up observer to watch for Google Translate changes
+            const observer = new MutationObserver(function(mutations) {
+                mutations.forEach(function(mutation) {
+                    if (mutation.type === 'attributes' && mutation.attributeName === 'class') {
+                        restoreBodyPosition();
+                    }
+                });
+            });
+
+            // Start observing the body for class changes
+            const body = document.querySelector('body');
+            if (body) {
+                observer.observe(body, {
+                    attributes: true,
+                    attributeFilter: ['class']
+                });
+            }
+
+            // Also call it immediately
+            restoreBodyPosition();
+        });
+    </script>
+
+    @yield('scripts')
+</body>
+
+</html>
+
+
+
+header.blade.php:
+<header class="sticky w-full top-0 left-0 py-4 border-b-2 border-gray-300 bg-white z-50">
+    <div class="mx-auto px-4 lg:px-8 max-w-[1600px] flex items-center justify-between">
+
+        {{-- Brand Logo --}}
+        <a href="/" class="flex items-center gap-2">
+            <img src="{{ asset($brandlogo) }}" alt="{{ $brandname }}" class="h-10">
+        </a>
+
+        {{-- Mobile Menu Toggle --}}
+        <button onclick="toggleMenu()" class="lg:hidden text-[#012252] focus:outline-none transition-all duration-200">
+            <svg id="icon-hamburger" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
+                stroke="currentColor" stroke-width="2" class="w-8 h-8">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+            </svg>
+
+            <svg id="icon-close" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
+                stroke="currentColor" stroke-width="2" class="w-8 h-8 hidden">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+        </button>
+
+        {{-- Navigation --}}
+        <nav id="nav-menu"
+            class="hidden lg:flex flex-col lg:flex-row items-center gap-4 lg:gap-8 absolute lg:static top-full left-0 w-full lg:w-auto bg-white lg:bg-transparent lg:border-0 shadow-lg lg:shadow-none p-4 lg:p-0 transition-all duration-300">
+
+            @if (Auth::guard('wholesaler')->check())
+                {{-- Chat Icon --}}
+                <a href="/wholesaler/chats" class="w-[40px] h-[40px] flex items-center justify-center p-2">
+                    <img src="/assets/images/chat.png" alt="Messages" class="w-full">
+                </a>
+
+                {{-- Profile Circle with Arrow --}}
+                <div class="relative">
+                    <div class="hidden lg:flex items-center gap-2 cursor-pointer toggle_profile_details select-none">
+                        <div
+                            class="w-[40px] h-[40px] flex items-center justify-center p-2 bg-[#F6F6F6] text-[#46484D] rounded-full font-semibold text-xl">
+                            {{ strtoupper(substr(Auth::guard('wholesaler')->user()->company_name, 0, 1)) }}
+                        </div>
+
+                        {{-- Arrow Icon --}}
+                        <svg id="arrow-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
+                            stroke="currentColor" stroke-width="2"
+                            class="w-5 h-5 text-gray-600 transition-transform duration-200">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
+                        </svg>
+                    </div>
+
+                    {{-- Dropdown Menu --}}
+                    <div id="profileDropdown"
+                        class="lg:hidden text-sm lg:text-md lg:absolute right-0 mt-2 bg-white lg:border border-gray-200 rounded-lg lg:shadow-lg lg:px-4 lg:py-2 text-gray-700 z-50">
+                        <a href="/wholesaler/set-up-wholesaler-profile"
+                            class="block px-4 py-2 hover:bg-gray-100 transition-colors duration-150 rounded-md">Profile</a>
+                        <a href="/wholesaler/set-up-wholesaler-settings"
+                            class="block px-4 py-2 hover:bg-gray-100 transition-colors duration-150 rounded-md">Settings</a>
+                        <hr class="my-1 hidden lg:block">
+
+                        <button type="button"
+                            class="w-full block px-4 py-2 text-red-600 hover:bg-gray-100 transition-colors duration-150 text-left rounded-md"
+                            onclick="logoutPopUp()">
+                            Log out
+                        </button>
+                    </div>
+                </div>
+            @elseif(Auth::guard('manufacturer')->check())
+                <a href="/manufacturer/chats" class="w-[40px] h-[40px] flex items-center justify-center p-2">
+                    <img src="/assets/images/chat.png" alt="Messages" class="w-full">
+                </a>
+
+                {{-- Profile Circle with Arrow --}}
+                <div class="relative">
+                    <div class="hidden lg:flex items-center gap-2 cursor-pointer toggle_profile_details select-none">
+                        <div
+                            class="w-[40px] h-[40px] flex items-center justify-center bg-[#F6F6F6] text-[#46484D] rounded-full font-semibold text-xl">
+                            {{-- {{ strtoupper(substr(Auth::guard('manufacturer')->user()->company_name, 0, 1)) }} --}}
+                            @if (Auth::guard('manufacturer')->user()->company_logo)
+                                <img src="{{ asset(Auth::guard('manufacturer')->user()->company_logo) }}"
+                                    alt="{{ Auth::guard('manufacturer')->user()->company_name }}"
+                                    class="w-full h-full rounded-full">
+                            @else
+                                <img src="/assets/images/menufacturer.png" alt="Default Company Logo"
+                                    class="w-full h-full rounded-full">
+                            @endif
+                        </div>
+
+                        {{-- Arrow Icon --}}
+                        <svg id="arrow-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
+                            stroke="currentColor" stroke-width="2"
+                            class="w-5 h-5 text-gray-600 transition-transform duration-200">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
+                        </svg>
+                    </div>
+
+                    {{-- Dropdown Menu --}}
+                    <div id="profileDropdown"
+                        class="lg:hidden text-sm lg:text-md lg:absolute right-0 mt-2 bg-white lg:border border-gray-200 rounded-lg lg:shadow-lg lg:px-4 lg:py-2 text-gray-700 z-50">
+                        <a href="/manufacturer/packages"
+                            class="block px-4 py-2 hover:bg-gray-100 transition-colors duration-150 rounded-md">Packages</a>
+                        <a href="/manufacturer/manage-subscription"
+                            class="block px-4 py-2 hover:bg-gray-100 transition-colors duration-150 rounded-md">Subscription</a>
+                        <a href="/manufacturer/set-up-manufacturer-profile"
+                            class="block px-4 py-2 hover:bg-gray-100 transition-colors duration-150 rounded-md">Profile</a>
+                        <a href="/manufacturer/set-up-manufacturer-settings"
+                            class="block px-4 py-2 hover:bg-gray-100 transition-colors duration-150 rounded-md">Settings</a>
+                        <hr class="my-1 hidden lg:block">
+
+                        <button type="button"
+                            class="w-full block px-4 py-2 text-red-600 hover:bg-gray-100 transition-colors duration-150 text-left rounded-md"
+                            onclick="logoutPopUp()">
+                            Log out
+                        </button>
+                    </div>
+                </div>
+            @else
+                <div class="flex gap-2">
+                    <a href="/manufacturer/login"
+                        class="block text-gray-700 hover:text-[#003FB4] text-center px-4 py-2 font-semibold transition-colors duration-200">
+                        Log in
+                    </a>
+
+                    <a href="/manufacturer/packages"
+                        class="block text-gray-700 hover:text-[#003FB4] text-center px-4 py-2 font-semibold transition-colors duration-200">
+                        Packages
+                    </a>
+                </div>
+
+                <a href="/create-account"
+                    class="block text-white hover:bg-[#002F8E] rounded-lg px-4 py-3 bg-[#003FB4] text-center font-semibold transition-all duration-200">
+                    Create account
+                </a>
+            @endif
+        </nav>
+    </div>
+</header>
+
+
+
+
+<div id="logoutModal" class="modal-overlay">
+    <div class="modal-content filter_content">
+        <div class="col-span-3 p-4 py-10 rounded-lg bg-[#F6F6F6] mx-4 lg:w-[680px] lg:mx-auto logout_modal relative">
+            <img src="/assets/images/cross.png" alt="Close" class="modal-close" onclick="closeLogoutModal()">
+            <img src="/assets/images/log-out.png" alt="" class="w-24 rounded block mx-auto">
+            <h3 class="text-xl my-4 mb-8 text-[40px] text-[#121212] text-center">
+                Are you sure you want to <br> log out?
+            </h3>
+
+            <div
+                class="flex lg:flex-row justify-center items-center gap-2 lg:gap-8 absolute lg:static top-full left-0 w-full lg:w-auto bg-white lg:bg-transparent lg:border-0 shadow-lg lg:shadow-none p-4 lg:p-0 transition-all duration-300">
+                <button class="block text-[#003FB4] text-center px-2 py-2 transition-colors duration-200"
+                    onclick="closeLogoutModal()">
+                    Stay signed in
+                </button>
+                @if (Auth::guard('wholesaler')->check())
+                    <form method="POST" action="/wholesaler/logout">
+                        @csrf
+                        <button type="submit"
+                            class="block text-white hover:bg-[#002F8E] rounded-lg px-4 py-2 bg-[#003FB4] text-center transition-all duration-200">
+                            Log out
+                        </button>
+                    </form>
+                @else
+                    <form method="POST" action="/manufacturer/logout">
+                        @csrf
+                        <button type="submit"
+                            class="block text-white hover:bg-[#002F8E] rounded-lg px-4 py-2 bg-[#003FB4] text-center transition-all duration-200">
+                            Log out
+                        </button>
+                    </form>
+                @endif
+            </div>
+        </div>
+    </div>
+</div>
+
+
+{{-- Scripts --}}
+<script>
+    // Mobile nav toggle
+    function toggleMenu() {
+        const menu = document.getElementById('nav-menu');
+        const iconHamburger = document.getElementById('icon-hamburger');
+        const iconClose = document.getElementById('icon-close');
+        menu.classList.toggle('hidden');
+        iconHamburger.classList.toggle('hidden');
+        iconClose.classList.toggle('hidden');
+    }
+
+    // Profile dropdown toggle with arrow rotation
+    document.addEventListener('click', function(event) {
+        const toggle = document.querySelector('.toggle_profile_details');
+        const dropdown = document.getElementById('profileDropdown');
+        const arrow = document.getElementById('arrow-icon');
+
+        if (toggle && toggle.contains(event.target)) {
+            dropdown.classList.toggle('lg:hidden');
+
+            // Rotate arrow - up when open, down when closed
+            if (dropdown.classList.contains('lg:hidden')) {
+                arrow.style.transform = 'rotate(0deg)';
+            } else {
+                arrow.style.transform = 'rotate(180deg)';
+            }
+        } else if (dropdown && !dropdown.contains(event.target)) {
+            dropdown.classList.add('lg:hidden');
+            if (arrow) {
+                arrow.style.transform = 'rotate(0deg)';
+            }
+        }
+    });
+
+    // Close mobile menu when clicking outside
+    document.addEventListener('click', function(event) {
+        const menu = document.getElementById('nav-menu');
+        const menuButton = document.querySelector('button[onclick="toggleMenu()"]');
+
+        if (menu && !menu.contains(event.target) && !menuButton.contains(event.target)) {
+            if (!menu.classList.contains('hidden') && window.innerWidth < 1024) {
+                toggleMenu();
+            }
+        }
+    });
+
+
+    function logoutPopUp() {
+        document.getElementById('logoutModal').style.display = 'flex';
+        document.body.style.overflow = 'hidden';
+    }
+
+    function closeLogoutModal() {
+        document.getElementById('logoutModal').style.display = 'none';
+        document.body.style.overflow = 'auto';
+    }
+</script>
+
+
+
+Chat app.blade.php:
+<!doctype html>
+<html lang="en" class="main_html">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    @if (Auth::guard('wholesaler')->check())
+        <meta name="user-type" content="wholesaler">
+    @else
+        <meta name="user-type" content="manufacturer">
+    @endif
+
+
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css" rel="stylesheet">
+    <link rel="icon" href="{{ $website_icon }}" type="image/x-icon">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css">
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.js"></script>
+
+    @vite('resources/css/app.css')
+    {{-- <link rel="stylesheet" href="/assets/css/tailwind.css"> --}}
+    <link rel="stylesheet" href="/assets/css/styles.css">
+    <title>{{ $brandname }} — @yield('title') </title>
+    @yield('styles')
+</head>
+
+
+<body class="bg-white dark:bg-gray-950">
+
+    @yield('content')
+
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"
+        integrity="sha256-/JqT3SQfawRcv/BIHPThkBvs0OEvtFFmqPF/lYI/Cxo=" crossorigin="anonymous"></script>
+
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.all.min.js"></script>
+    <script src="/assets/js/messaging.js"></script>
+
+    <script>
+        // SweetAlert2 notifications
+        @if (Session::has('success'))
+            Swal.fire({
+                icon: 'success',
+                title: 'Success!',
+                text: "{{ Session::get('success') }}",
+                timer: 3000,
+                showConfirmButton: false
+            });
+        @endif
+
+        @if (Session::has('error'))
+            Swal.fire({
+                icon: 'error',
+                title: 'Error!',
+                text: "{{ Session::get('error') }}",
+                timer: 4000,
+                showConfirmButton: true
+            });
+        @endif
+
+        @if (Session::has('info'))
+            Swal.fire({
+                icon: 'info',
+                title: 'Information',
+                text: "{{ Session::get('info') }}",
+                timer: 3000,
+                showConfirmButton: false
+            });
+        @endif
+
+        @if (Session::has('warning'))
+            Swal.fire({
+                icon: 'warning',
+                title: 'Warning!',
+                text: "{{ Session::get('warning') }}",
+                timer: 4000,
+                showConfirmButton: true
+            });
+        @endif
+    </script>
+
+
+    @yield('scripts')
+
+</body>
+
+</html>
+
+
+
+Now when a message is send to another user if user is there then show a toastr alert. Count 15 minutes as inactivity, so after 15 minutes from the last_active_time, user will be counted as offline and will be shown in the chat as offline, else he will be counted as online user.
+The chat blade is specified for chat related stuffs, and the other one the app.blade.php is the layout of the main website. So i want when user not in chats page, he can still be identified and notified about the chat and then he can go to chats and reply to them. if wholesaler then /wholesaler/chats, if manufacturer then /manufacturer/chats
+
+
+
+Please fix this and share me the updated codebase.
+Thanks.
+
+
+currently if user leave the chat he shows as offline, but user should shown as available even after inactivity of last 15 minutes to the main chat blade.
+
+And in the other pages whenever user gets a new message he will see a toastr message there.
+
