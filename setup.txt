@@ -1,15 +1,2 @@
-Let the instance be: 2 vCPU | 4 GB
-Set Hostname: SHIPEX-Server
-Instead SSH key use password
-user: root
-password: Obumneke@25
 
-
-Then please recharge it. if the '2 vCPU | 4 GB' is much costly to you then you can use the '1 vCPU | 2 GB' one only in that case.
-
-
-
-
-SSH key setup:
-ssh-keygen -t ed25519 -C "leonardbobby0@gmail.com"
 
