@@ -169,7 +169,7 @@
                             <th>Payment Method</th>
                             <th>Payment Date</th>
                             <th>Coupon Code</th>
-                            <th>Stripe Subscription ID</th>
+                            <th>Payment ID</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -212,9 +212,9 @@
                                 @endif
                             </td>
                             <td>
-                                @if($record->stripe_subscription_id)
+                                @if($record->paypal_payment_id)
                                     <span class="text-xs font-mono text-gray-600 dark:text-gray-400">
-                                        {{ $record->stripe_subscription_id }}
+                                        {{ $record->paypal_payment_id }}
                                     </span>
                                 @else
                                     <span class="no-data">N/A</span>
