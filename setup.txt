@@ -1,2 +1,305 @@
+ssh root@38.60.220.4
+password: Obumneke@25
+
+
+CREATE DATABASE shipex;
+CREATE USER 'shipex_user'@'localhost' IDENTIFIED BY 'Obumneke@25';
+GRANT ALL PRIVILEGES ON shipex.* TO 'shipex_user'@'localhost';
+FLUSH PRIVILEGES;
+EXIT;
+
+
+
+vi .env
+
+From windows:  scp C:\Users\ACER\Downloads\shipex_database.sql root@38.60.220.4:/tmp/
+
+From VPS:  mysql -u shipex_user -pObumneke@25 shipex < /tmp/shipex_database.sql
+
+
+
+
+For seeing the database:
+mysql -u shipex_user -pObumneke@25 shipex
+
+-- Show all tables in the database
+SHOW TABLES;
+
+-- View structure of a specific table (example)
+DESCRIBE users;
+
+-- View data from a specific table (example: first 10 rows)
+SELECT * FROM users LIMIT 10;
+
+-- Count records in a table
+SELECT COUNT(*) FROM users;
+
+-- Exit MySQL
+EXIT;
+
+
+
+
+
+
+
+
+
+--------------Another level of setups-------------
+# Create Nginx config
+nano /etc/nginx/sites-available/shipex
+
+
+server {
+    listen 80;
+    server_name 38.60.220.4;
+    root /var/www/shipex/public;
+
+    add_header X-Frame-Options "SAMEORIGIN";
+    add_header X-Content-Type-Options "nosniff";
+
+    index index.php index.html;
+
+    charset utf-8;
+
+    location / {
+        try_files $uri $uri/ /index.php?$query_string;
+    }
+
+    location = /favicon.ico { access_log off; log_not_found off; }
+    location = /robots.txt  { access_log off; log_not_found off; }
+
+    error_page 404 /index.php;
+
+    location ~ \.php$ {
+        fastcgi_pass unix:/var/run/php/php8.2-fpm.sock;
+        fastcgi_param SCRIPT_FILENAME $realpath_root$fastcgi_script_name;
+        include fastcgi_params;
+        fastcgi_hide_header X-Powered-By;
+    }
+
+    location ~ /\.(?!well-known).* {
+        deny all;
+    }
+}
+
+
+
+
+
+
+
+
+
+
+# Enable the site
+ln -s /etc/nginx/sites-available/shipex /etc/nginx/sites-enabled/
+
+# Remove default site
+rm /etc/nginx/sites-enabled/default
+
+# Test Nginx configuration
+nginx -t
+
+# Restart Nginx and PHP-FPM
+systemctl restart nginx
+systemctl restart php8.2-fpm
+
+
+
+
+---------------------------------------------------------
+---------------------------------------------------------
+
+nano /etc/nginx/sites-available/shipex
+
+server {
+    listen 80;
+    server_name 38.60.220.4;
+    root /var/www/shipex/public;
+
+    add_header X-Frame-Options "SAMEORIGIN";
+    add_header X-Content-Type-Options "nosniff";
+
+    index index.php index.html;
+
+    charset utf-8;
+
+    location / {
+        try_files $uri $uri/ /index.php?$query_string;
+    }
+
+    location = /favicon.ico { access_log off; log_not_found off; }
+    location = /robots.txt  { access_log off; log_not_found off; }
+
+    error_page 404 /index.php;
+
+    location ~ \.php$ {
+        fastcgi_pass unix:/var/run/php/php8.2-fpm.sock;
+        fastcgi_param SCRIPT_FILENAME $realpath_root$fastcgi_script_name;
+        include fastcgi_params;
+        fastcgi_hide_header X-Powered-By;
+    }
+
+    location ~ /\.(?!well-known).* {
+        deny all;
+    }
+}
+
+# WebSocket proxy on port 3000
+server {
+    listen 3000;
+    server_name 38.60.220.4;
+
+    location / {
+        proxy_pass http://127.0.0.1:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_read_timeout 86400;
+    }
+}
+
+
+
+
+
+# Test Nginx configuration
+nginx -t
+
+# Reload Nginx
+systemctl reload nginx
+
+
+
+
+# Update package list
+apt update
+
+# Install ufw
+apt install ufw -y
+
+# Enable firewall
+ufw enable
+
+# Allow SSH first (important!)
+ufw allow ssh
+
+# Allow your websocket port
+ufw allow 3000/tcp
+
+# Check status
+ufw status
+
+
+
+
+nano /etc/supervisor/conf.d/shipex-worker.conf
+[program:shipex-worker]
+process_name=%(program_name)s_%(process_num)02d
+command=php /var/www/shipex/artisan queue:work redis --sleep=3 --tries=3 --max-time=3600
+autostart=true
+autorestart=true
+stopasgroup=true
+killasgroup=true
+user=www-data
+numprocs=2
+redirect_stderr=true
+stdout_logfile=/var/www/shipex/storage/logs/worker.log
+stopwaitsecs=3600
+
+
+
+# Reload supervisor
+supervisorctl reread
+supervisorctl update
+supervisorctl start all
+
+# Check status
+supervisorctl status
+
+
+
+
+
+
+
+
+-------------------------Verify Everything is Running--------------------------
+# Check PM2 WebSocket server
+pm2 status
+pm2 logs shipex-websocket --lines 50
+
+# Check if WebSocket is listening
+netstat -tulpn | grep 3000
+
+# Test WebSocket health endpoint
+curl http://localhost:3000/health
+
+# Test WebSocket status
+curl http://localhost:3000/status
+
+
+
+
+nano /etc/nginx/sites-available/shipex
+server {
+    listen 80;
+    server_name shipex.co.kr www.shipex.co.kr;
+    root /var/www/shipex/public;
+
+    add_header X-Frame-Options "SAMEORIGIN";
+    add_header X-Content-Type-Options "nosniff";
+
+    index index.php index.html;
+
+    charset utf-8;
+
+    # WebSocket proxy route
+    location /ws {
+        proxy_pass http://127.0.0.1:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_read_timeout 86400;
+    }
+
+    location / {
+        try_files $uri $uri/ /index.php?$query_string;
+    }
+
+    location = /favicon.ico { access_log off; log_not_found off; }
+    location = /robots.txt  { access_log off; log_not_found off; }
+
+    error_page 404 /index.php;
+
+    location ~ \.php$ {
+        fastcgi_pass unix:/var/run/php/php8.2-fpm.sock;
+        fastcgi_param SCRIPT_FILENAME $realpath_root$fastcgi_script_name;
+        include fastcgi_params;
+        fastcgi_hide_header X-Powered-By;
+    }
+
+    location ~ /\.(?!well-known).* {
+        deny all;
+    }
+}
+
+
+const wsUrl = `wss://shipex.co.kr/ws?userId=${user_uid}&userType=${userType}`;
+
+
+# Install Certbot
+apt install certbot python3-certbot-nginx -y
+
+# Get SSL certificate
+certbot --nginx -d shipex.co.kr -d www.shipex.co.kr
 
 

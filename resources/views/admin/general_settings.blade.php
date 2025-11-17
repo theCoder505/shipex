@@ -170,14 +170,14 @@
             </div>
         </div>
 
-        <!-- Stripe Payment Settings -->
+        <!-- Paypal Payment Settings -->
         <div class="mb-8">
             <h2
                 class="text-lg font-semibold text-gray-900 dark:text-white mb-4 pb-2 border-b border-gray-200 dark:border-gray-800">
-                Stripe Payment Settings
+                Paypal Payment Settings
             </h2>
 
-            <div class="col-span-2 grid grid-cols-1 lg:grid-cols-3 gap-4">
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
                 <div>
                     <label for="PAYPAL_CLIENT_ID" class="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">
                         Paypal Client ID
@@ -244,7 +244,81 @@
                         placeholder="Subscription Amount" />
                 </div>
             </div>
+
+            <div class="grid grid-cols-1 gap-4 lg:grid-cols-2 mt-4">
+                <div>
+                    <label for="currency" class="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">
+                        Currency
+                    </label>
+                    <select name="currency" id="currency"
+                        class="w-full px-4 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-800 dark:text-white">
+                        <option value="">Select Currency</option>
+                        <option @if ($settings->currency == 'usd') selected @endif value="usd">USD</option>
+                        <option @if ($settings->currency == 'krw') selected @endif value="krw">KRW</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="exchange_rate" class="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">
+                        Exchange Rate (1 USD to KRW)
+                    </label>
+                    <input type="number" id="exchange_rate" name="exchange_rate" min="5"
+                        value="{{ $settings->exchange_rate ?? '' }}"
+                        class="w-full px-4 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-800 dark:text-white"
+                        placeholder="1461" />
+                </div>
+            </div>
         </div>
+
+
+        <!-- Social Login Keys -->
+        <div class="mb-8">
+            <h2
+                class="text-lg font-semibold text-gray-900 dark:text-white mb-4 pb-2 border-b border-gray-200 dark:border-gray-800">
+                Social Login Keys
+            </h2>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                    <label for="google_client_id" class="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">
+                        Google Client ID
+                    </label>
+                    <input type="text" id="google_client_id" name="google_client_id"
+                        value="{{ $settings->google_client_id ?? '' }}"
+                        class="w-full px-4 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-800 dark:text-white"
+                        placeholder="Client ID here..." />
+                </div>
+                <div>
+                    <label for="google_client_secret"
+                        class="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">
+                        Google Client Secret
+                    </label>
+                    <input type="text" id="google_client_secret" name="google_client_secret"
+                        value="{{ $settings->google_client_secret ?? '' }}"
+                        class="w-full px-4 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-800 dark:text-white"
+                        placeholder="Key here..." />
+                </div>
+                <div>
+                    <label for="kakao_client_id" class="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">
+                        Kakao Talk Client ID
+                    </label>
+                    <input type="text" id="kakao_client_id" name="kakao_client_id"
+                        value="{{ $settings->kakao_client_id ?? '' }}"
+                        class="w-full px-4 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-800 dark:text-white"
+                        placeholder="Client ID here..." />
+                </div>
+                <div>
+                    <label for="kakao_client_secret"
+                        class="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">
+                        Kakao Talk Client Secret
+                    </label>
+                    <input type="text" id="kakao_client_secret" name="kakao_client_secret"
+                        value="{{ $settings->kakao_client_secret ?? '' }}"
+                        class="w-full px-4 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-800 dark:text-white"
+                        placeholder="Key here..." />
+                </div>
+            </div>
+        </div>
+
 
         <!-- Contact Information -->
         <div class="mb-8">

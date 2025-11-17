@@ -35,10 +35,18 @@
                 <div class="relative">
                     <div class="hidden lg:flex items-center gap-2 cursor-pointer toggle_profile_details select-none">
                         <div
-                            class="w-[40px] h-[40px] flex items-center justify-center p-2 bg-[#F6F6F6] text-[#46484D] rounded-full font-semibold text-xl">
-                            {{ strtoupper(substr(Auth::guard('wholesaler')->user()->company_name, 0, 1)) }}
+                            class="w-[40px] h-[40px] flex items-center justify-center bg-[#F6F6F6] text-[#46484D] rounded-full font-semibold text-xl">
+                            @if (Auth::guard('wholesaler')->user()->profile_picture)
+                                <img src="{{ asset(Auth::guard('wholesaler')->user()->profile_picture) }}"
+                                    alt="{{ Auth::guard('wholesaler')->user()->company_name }}"
+                                    class="w-full h-full rounded-full">
+                            @else
+                                <div
+                                    class="w-[40px] h-[40px] flex items-center justify-center p-2 bg-[#F6F6F6] text-[#46484D] rounded-full font-semibold text-xl">
+                                    {{ strtoupper(substr(Auth::guard('wholesaler')->user()->company_name, 0, 1)) }}
+                                </div>
+                            @endif
                         </div>
-
                         {{-- Arrow Icon --}}
                         <svg id="arrow-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
                             stroke="currentColor" stroke-width="2"

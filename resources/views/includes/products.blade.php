@@ -65,14 +65,6 @@
             @endif
         </div>
     </div>
-
-    @if ($tot_menufacturers > 3)
-        <div class="mt-8">
-            <button type="button"
-                class="px-4 py-2 rounded-lg text-[#003FB4] border border-[#003FB4] hover:bg-[#003FB4] hover:text-white mx-auto mb-6 block"
-                onclick="loadMoreMenufacturer(this)">Load more</button>
-        </div>
-    @endif
 </div>
 
 <div id="imageModal" class="hidden fixed inset-0 bg-[#000000cc] z-50 flex items-center justify-center p-4">

@@ -12,14 +12,14 @@
         </a>
 
 
-        <a href="/admin/ussers/manufacturers"
+        <a href="/admin/users/manufacturers"
             class="flex items-center gap-3 px-4 py-3 text-gray-700 dark:text-gray-300 hover:bg-blue-50 dark:hover:bg-gray-800 rounded-lg transition-colors manufacturers sidebar_tab">
             <i class="fas fa-industry w-4"></i>
             <span class="font-medium">Manufacturers</span>
         </a>
 
 
-        <a href="/admin/ussers/wholesalers"
+        <a href="/admin/users/wholesalers"
             class="flex items-center gap-3 px-4 py-3 text-gray-700 dark:text-gray-300 hover:bg-blue-50 dark:hover:bg-gray-800 rounded-lg transition-colors wholesalers sidebar_tab">
             <i class="fas fa-truck-loading w-4"></i>
             <span class="font-medium">Wholesalers</span>

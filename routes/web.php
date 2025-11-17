@@ -6,6 +6,8 @@ use App\Http\Controllers\ChatsController;
 use App\Http\Controllers\menufacturer\ManufacturerPagesController;
 use App\Http\Controllers\menufacturer\MenufacturerCredentialsController;
 use App\Http\Controllers\menufacturer\SubscriptionController;
+use App\Http\Controllers\SocialiteAuthConntroller;
+use App\Http\Controllers\SocialKakaoLoginConntroller;
 use App\Http\Controllers\surface\SurfacePagesController;
 use App\Http\Controllers\wholesaler\CredentialsController;
 use Illuminate\Support\Facades\Artisan;
@@ -82,6 +84,44 @@ Route::post('/manufacturer/sign-in-verification', [MenufacturerCredentialsContro
 Route::get('/manufacturer/signup', [MenufacturerCredentialsController::class, 'manufacturerSignupPages']);
 Route::post('/manufacturer/verify-signup', [MenufacturerCredentialsController::class, 'verifySignUp']);
 Route::post('/manufacturer/otp-verification', [MenufacturerCredentialsController::class, 'OTPVerification']);
+
+
+
+
+
+
+
+
+
+
+// GOOGLE SOCIALITE
+Route::get('/manufacturer/signup-with-google', [SocialiteAuthConntroller::class, 'manufacturerGoogleSignUp']);
+Route::get('/manufacturer/auth/google/callback', [SocialiteAuthConntroller::class, 'manufacturerGoogleCallback']);
+Route::get('/manufacturer/login-with-google', [SocialiteAuthConntroller::class, 'manufacturerGoogleLogin']);
+Route::get('/manufacturer/auth/google-login-callback', [SocialiteAuthConntroller::class, 'manufacturerGoogleLoginCallback']);
+
+
+Route::get('/wholesaler/signup-with-google', [SocialiteAuthConntroller::class, 'wholesalerGoogleSignUp']);
+Route::get('/wholesaler/auth/google/callback', [SocialiteAuthConntroller::class, 'wholesalerGoogleCallback']);
+Route::get('/wholesaler/login-with-google', [SocialiteAuthConntroller::class, 'wholesalerGoogleLogin']);
+Route::get('/wholesaler/auth/google-login-callback', [SocialiteAuthConntroller::class, 'wholesalerGoogleLoginCallback']);
+
+
+
+// Manufacturer - Kakao
+Route::get('/manufacturer/signup-with-kakao', [SocialKakaoLoginConntroller::class, 'manufacturerKakaoSignUp']);
+Route::get('/manufacturer/auth/kakao/callback', [SocialKakaoLoginConntroller::class, 'manufacturerKakaoCallback']);
+Route::get('/manufacturer/login-with-kakao', [SocialKakaoLoginConntroller::class, 'manufacturerKakaoLogin']);
+Route::get('/manufacturer/auth/kakao-login-callback', [SocialKakaoLoginConntroller::class, 'manufacturerKakaoLoginCallback']);
+
+// Wholesaler - Kakao
+Route::get('/wholesaler/signup-with-kakao', [SocialKakaoLoginConntroller::class, 'wholesalerKakaoSignUp']);
+Route::get('/wholesaler/auth/kakao/callback', [SocialKakaoLoginConntroller::class, 'wholesalerKakaoCallback']);
+Route::get('/wholesaler/login-with-kakao', [SocialKakaoLoginConntroller::class, 'wholesalerKakaoLogin']);
+Route::get('/wholesaler/auth/kakao-login-callback', [SocialKakaoLoginConntroller::class, 'wholesalerKakaoLoginCallback']);
+ 
+
+
 
 
 
@@ -169,14 +209,14 @@ Route::post('/admin/logout', [AdminCredentials::class, 'adminLogout']);
 
 
 Route::get('/admin/dashboard', [AdminPagesController::class, 'adminDashboard'])->middleware('admin');
-Route::get('/admin/ussers/manufacturers', [AdminPagesController::class, 'showManufacturers'])->middleware('admin');
-Route::post('/admin/ussers/manufacturers/change-status', [AdminPagesController::class, 'changeManufacturerStatus'])->middleware('admin');
+Route::get('/admin/users/manufacturers', [AdminPagesController::class, 'showManufacturers'])->middleware('admin');
+Route::post('/admin/users/manufacturers/change-status', [AdminPagesController::class, 'changeManufacturerStatus'])->middleware('admin');
 Route::get('/admin/manufacturers/{manufacturer_uid}/reviews', [AdminPagesController::class, 'showManufacturerReviews'])->middleware('admin');
 Route::get('/admin/reviews/{review_id}/{option}', [AdminPagesController::class, 'reviewToggle'])->middleware('admin');
 Route::delete('/admin/reviews/delete/{review_id}', [AdminPagesController::class, 'deleteReview'])->middleware('admin');
 
 
-Route::get('/admin/ussers/wholesalers', [AdminPagesController::class, 'showWholesalers'])->middleware('admin');
+Route::get('/admin/users/wholesalers', [AdminPagesController::class, 'showWholesalers'])->middleware('admin');
 Route::post('/admin/wholesaler-toggle-restriction', [AdminPagesController::class, 'toggleWholesalerRestriction'])->middleware('admin');
 
 

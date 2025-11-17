@@ -129,13 +129,13 @@
                     <div class="max-w-[400px]">
                         <!-- Social Buttons -->
                         <div class="my-4 grid gap-5">
-                            <a href="/wholesaler/social-signup/google"
+                            <a href="/wholesaler/signup-with-google"
                                 class="border px-4 py-2 rounded-lg flex cursor-pointer gap-2 justify-center items-center border-[#BCBCBC] hover:bg-[#D6E2F7] text-sm">
                                 <img src="/assets/images/google.png" alt="">
                                 <p>Continue with Google</p>
                             </a>
 
-                            <a href="/wholesaler/social-signup/kakao"
+                            <a href="/wholesaler/signup-with-kakao"
                                 class="border px-4 py-2 rounded-lg flex cursor-pointer gap-2 justify-center items-center border-[#BCBCBC] hover:bg-[#D6E2F7] text-sm">
                                 <img src="/assets/images/kakao.png" alt="">
                                 <p>Continue with Kakao</p>

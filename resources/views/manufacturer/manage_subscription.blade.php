@@ -201,7 +201,12 @@
                                                     {{ strtoupper($record->payment_status) }}
                                                 </span>
                                                 <span class="text-lg font-bold text-gray-900">
-                                                    ${{ number_format($record->amount, 2) }}
+                                                    @if ($record->currency == 'usd')
+                                                        $
+                                                    @else
+                                                        ₩
+                                                    @endif
+                                                    {{ number_format($record->amount, 2) }}
                                                 </span>
                                             </div>
 

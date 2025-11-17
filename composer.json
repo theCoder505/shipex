@@ -11,10 +11,12 @@
         "intervention/image-laravel": "^1.5",
         "laravel/framework": "^10.10",
         "laravel/sanctum": "^3.3",
+        "laravel/socialite": "^5.23",
         "laravel/tinker": "^2.8",
         "omnipay/omnipay": "3.*",
         "omnipay/paypal": "^3.0",
         "php-http/guzzle7-adapter": "^1.1",
+        "socialiteproviders/kakao": "^4.3",
         "srmklive/paypal": "~3.0",
         "stripe/stripe-php": "^18.0"
     },

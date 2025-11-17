@@ -87,4 +87,12 @@
     .profile_image{
         @apply mx-auto w-48 h-48 rounded-full shadow-2xl mb-4 cursor-pointer;
     }
+
+    .choosed_currency{
+        @apply cursor-pointer bg-[#059669] text-white px-4 py-1 rounded-full border-2 border-[#059669] font-semibold;
+    }
+
+    .unchoosed_currency{
+        @apply cursor-pointer text-[#1ee0a3] px-4 py-1 rounded-full border-2 border-[#059669] font-semibold hover:bg-[#059669] hover:text-white;
+    }
 }

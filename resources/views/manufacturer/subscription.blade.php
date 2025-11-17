@@ -1,214 +1,18 @@
 @extends('layouts.surface.app')
+
 @section('title', 'Choose A Subscription Package')
+
 @section('style')
-    <style>
-        body {
-            background: linear-gradient(180deg, #0a1628 0%, #1a2332 100%);
-            min-height: 100vh;
-        }
-
-        .subscription-card {
-            background: linear-gradient(180deg, #1e3a5f 0%, #0f1f3d 100%);
-            border-radius: 24px;
-            position: relative;
-            overflow: visible;
-            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-            cursor: pointer;
-            min-height: 520px;
-            border: 2px solid transparent;
-        }
-
-        .subscription-card:hover {
-            transform: translateY(-8px);
-            box-shadow: 0 20px 60px rgba(0, 149, 255, 0.3);
-            border-color: rgba(0, 149, 255, 0.5);
-        }
-
-        .subscription-card.active {
-            border-color: #0095ff;
-            box-shadow: 0 20px 60px rgba(0, 149, 255, 0.5);
-            transform: translateY(-8px) scale(1.02);
-        }
-
-        .card-header {
-            background: linear-gradient(135deg, #0095ff 0%, #0066cc 100%);
-            height: 100px;
-            border-radius: 24px 24px 0 0;
-            position: relative;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            clip-path: ellipse(100% 100% at 50% 0%);
-        }
-
-        .card-icon {
-            width: 70px;
-            height: 70px;
-            background: white;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            position: absolute;
-            bottom: -35px;
-            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3);
-            border: 4px solid #1e3a5f;
-        }
-
-        .price-section {
-            padding-top: 50px;
-            text-align: center;
-            margin-bottom: 30px;
-        }
-
-        .price {
-            font-size: 3.5rem;
-            font-weight: 800;
-            color: white;
-            line-height: 1;
-        }
-
-        .period {
-            color: #8b9dc3;
-            font-size: 1rem;
-            margin-left: 8px;
-        }
-
-        .feature-list {
-            padding: 0 30px;
-            margin-bottom: 30px;
-        }
-
-        .feature-item {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            margin-bottom: 16px;
-            color: white;
-            font-size: 0.95rem;
-        }
-
-        .feature-item svg {
-            flex-shrink: 0;
-            color: #0095ff;
-        }
-
-        .shop-btn {
-            background: linear-gradient(135deg, #0095ff 0%, #0066cc 100%);
-            color: white;
-            padding: 14px 40px;
-            border-radius: 12px;
-            font-weight: 700;
-            text-transform: uppercase;
-            font-size: 0.9rem;
-            letter-spacing: 0.5px;
-            border: none;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            box-shadow: 0 8px 20px rgba(0, 149, 255, 0.3);
-            display: inline-block;
-        }
-
-        .shop-btn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 12px 30px rgba(0, 149, 255, 0.5);
-        }
-
-        .discount-badge {
-            position: absolute;
-            top: 20px;
-            right: 20px;
-            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
-            color: white;
-            padding: 6px 16px;
-            border-radius: 20px;
-            font-size: 0.75rem;
-            font-weight: 700;
-            box-shadow: 0 4px 12px rgba(16, 185, 129, 0.4);
-            z-index: 10;
-        }
-
-        .plan-title {
-            color: white;
-            font-size: 1.8rem;
-            font-weight: 700;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-        }
-
-        .toggle-section {
-            display: flex;
-            align-items: center;
-            gap: 15px;
-            margin-bottom: 50px;
-        }
-
-        .toggle-label {
-            color: white;
-            font-size: 1.1rem;
-            font-weight: 600;
-        }
-
-        .discount-text {
-            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
-            color: white;
-            padding: 4px 12px;
-            border-radius: 12px;
-            font-size: 0.75rem;
-            font-weight: 700;
-        }
-
-        .coupon-section {
-            background: linear-gradient(180deg, #1e3a5f 0%, #0f1f3d 100%);
-            border: 2px solid #2d4a6f;
-            border-radius: 20px;
-        }
-
-        .submit-section {
-            background: linear-gradient(180deg, #1e3a5f 0%, #0f1f3d 100%);
-            border: 2px dashed #2d4a6f;
-            border-radius: 20px;
-        }
-
-        .hero-title {
-            color: white;
-            font-size: 3rem;
-            font-weight: 800;
-            text-align: center;
-            margin-bottom: 15px;
-        }
-
-        .hero-description {
-            color: #8b9dc3;
-            font-size: 1.1rem;
-            text-align: center;
-            max-width: 600px;
-            margin: 0 auto;
-        }
-
-        .dark .subscription-card {
-            background: linear-gradient(180deg, #1e3a5f 0%, #0f1f3d 100%);
-        }
-
-        @media (max-width: 768px) {
-            .price {
-                font-size: 2.5rem;
-            }
-
-            .hero-title {
-                font-size: 2rem;
-            }
-        }
-    </style>
+    <link rel="stylesheet" href="/assets/css/packages.css">
 @endsection
 @section('content')
     <div class="hero_section my-8 px-4 lg:px-8 max-w-[1200px] mx-auto">
         <h1 class="hero-title">Purchase Your Package</h1>
 
-
         @if ($subscription_status == 1)
             <p class="hero-description">You already Subscribed to our <span
-                    class="bg-blue-500 px-3 py-1 rounded-full text-xs text-white mx-1">{{ $subscription_type }}</span> Package. You can upgrade or degrade the
+                    class="bg-blue-500 px-3 py-1 rounded-full text-xs text-white mx-1">{{ $subscription_type }}</span>
+                Package. You can upgrade or degrade the
                 subscription as your need!</p>
         @else
             <p class="hero-description">Choose a subscription package that fits your business needs and continue to grow with
@@ -216,9 +20,9 @@
                 platform</p>
         @endif
 
-        <div class="toggle-section justify-center mt-8">
-            <span class="toggle-label">Yearly</span>
-            <div class="discount-text">{{ $yearly_discount }}% OFF</div>
+        <div class="mx-auto justify-center flex gap-2 mt-8 mb-12">
+            <div class="@if ($currency == 'usd') choosed_currency @else unchoosed_currency @endif currency" onclick="chooseCurrency(this)" data-id="usd">USD</div>
+            <div class="@if ($currency == 'krw') choosed_currency @else unchoosed_currency @endif currency" onclick="chooseCurrency(this)" data-id="krw">KRW</div>
         </div>
     </div>
 
@@ -226,10 +30,12 @@
         <form id="subscriptionForm" action="/manufacturer/purchase-subscription" method="POST">
             @csrf
             <input type="hidden" name="package_type" id="packageType" value="">
+            <input type="hidden" name="choosed_currency" id="choosedCurrency" value="{{ $currency }}">
 
             <div class="grid grid-cols-1 md:grid-cols-3 gap-8 mb-10">
                 <!-- Monthly Package -->
-                <div class="subscription-card @if ($package == 'monthly') active @endif" onclick="selectPackage('monthly', this)">
+                <div class="subscription-card @if ($package == 'monthly') active @endif"
+                    onclick="selectPackage('monthly', this)">
                     <div class="card-header">
                         <h3 class="plan-title">STARTER</h3>
                     </div>
@@ -241,7 +47,17 @@
                     </div>
 
                     <div class="price-section">
-                        <span class="price">${{ $monthly_fee_amount }}</span>
+                        @php
+                            $monthly_usd = $currency == 'usd' ? $monthly_fee_amount : round($monthly_fee_amount / $exchange_rate, 2);
+                            $monthly_krw = $currency == 'krw' ? $monthly_fee_amount : round($monthly_fee_amount * $exchange_rate);
+                        @endphp
+                        <span class="price monthly_amount" data-usd="{{ $monthly_usd }}" data-krw="{{ $monthly_krw }}">
+                            @if($currency == 'usd')
+                                ${{ number_format($monthly_usd, 2) }}
+                            @else
+                                ₩{{ number_format($monthly_krw, 0) }}
+                            @endif
+                        </span>
                         <span class="period">/Month</span>
                     </div>
 
@@ -296,7 +112,8 @@
                 </div>
 
                 <!-- 6 Monthly Package -->
-                <div class="subscription-card @if ($package == '6months') active @endif" onclick="selectPackage('6months', this)">
+                <div class="subscription-card @if ($package == '6months') active @endif"
+                    onclick="selectPackage('6months', this)">
                     <div class="discount-badge">SAVE {{ $half_yearly_discount }}%</div>
                     <div class="card-header">
                         <h3 class="plan-title">PREMIUM</h3>
@@ -309,7 +126,17 @@
                     </div>
 
                     <div class="price-section">
-                        <span class="price">${{ $half_yearly_fee_amount }}</span>
+                        @php
+                            $half_yearly_usd = $currency == 'usd' ? $half_yearly_fee_amount : round($half_yearly_fee_amount / $exchange_rate, 2);
+                            $half_yearly_krw = $currency == 'krw' ? $half_yearly_fee_amount : round($half_yearly_fee_amount * $exchange_rate);
+                        @endphp
+                        <span class="price half_yearly_amount" data-usd="{{ $half_yearly_usd }}" data-krw="{{ $half_yearly_krw }}">
+                            @if($currency == 'usd')
+                                ${{ number_format($half_yearly_usd, 2) }}
+                            @else
+                                ₩{{ number_format($half_yearly_krw, 0) }}
+                            @endif
+                        </span>
                         <span class="period">/6 Months</span>
                     </div>
 
@@ -364,7 +191,8 @@
                 </div>
 
                 <!-- Yearly Package -->
-                <div class="subscription-card @if ($package == 'yearly') active @endif" onclick="selectPackage('yearly', this)">
+                <div class="subscription-card @if ($package == 'yearly') active @endif"
+                    onclick="selectPackage('yearly', this)">
                     <div class="discount-badge">SAVE {{ $yearly_discount }}%</div>
                     <div class="card-header">
                         <h3 class="plan-title">ULTIMATE</h3>
@@ -378,7 +206,17 @@
                     </div>
 
                     <div class="price-section">
-                        <span class="price">${{ $yearly_fee_amount }}</span>
+                        @php
+                            $yearly_usd = $currency == 'usd' ? $yearly_fee_amount : round($yearly_fee_amount / $exchange_rate, 2);
+                            $yearly_krw = $currency == 'krw' ? $yearly_fee_amount : round($yearly_fee_amount * $exchange_rate);
+                        @endphp
+                        <span class="price yearly_amount" data-usd="{{ $yearly_usd }}" data-krw="{{ $yearly_krw }}">
+                            @if($currency == 'usd')
+                                ${{ number_format($yearly_usd, 2) }}
+                            @else
+                                ₩{{ number_format($yearly_krw, 0) }}
+                            @endif
+                        </span>
                         <span class="period">/Year</span>
                     </div>
 
@@ -479,25 +317,21 @@
 @section('scripts')
     <script>
         let selectedPackage = null;
+        const exchangeRate = {{ $exchange_rate }};
+        let currentCurrency = '{{ $currency }}';
 
         function selectPackage(packageType, element) {
-            // Remove active class from all cards
             document.querySelectorAll('.subscription-card').forEach(card => {
                 card.classList.remove('active');
             });
 
-            // Add active class to selected card
             element.classList.add('active');
-
-            // Store selected package
             selectedPackage = packageType;
             document.getElementById('packageType').value = packageType;
 
-            // Enable submit button
             const submitBtn = document.getElementById('submitBtn');
             submitBtn.disabled = false;
 
-            // Update selection message
             const packageNames = {
                 'monthly': 'Starter (Monthly)',
                 '6months': 'Premium (6 Months)',
@@ -514,7 +348,45 @@
             `;
         }
 
+        function chooseCurrency(element) {
+            const currency = element.getAttribute('data-id');
+            
+            $(".currency").removeClass("choosed_currency").addClass("unchoosed_currency");
+            $(element).removeClass("unchoosed_currency").addClass("choosed_currency");
+            
+            currentCurrency = currency;
+            document.getElementById('choosedCurrency').value = currency;
+            
+            updatePrices(currency);
+        }
 
+        function updatePrices(currency) {
+            const currencySymbol = currency === 'usd' ? '$' : '₩';
+            
+            const monthlyElement = document.querySelector('.monthly_amount');
+            const monthlyAmount = monthlyElement.getAttribute(`data-${currency}`);
+            monthlyElement.textContent = `${currencySymbol}${formatAmount(monthlyAmount, currency)}`;
+            
+            const halfYearlyElement = document.querySelector('.half_yearly_amount');
+            const halfYearlyAmount = halfYearlyElement.getAttribute(`data-${currency}`);
+            halfYearlyElement.textContent = `${currencySymbol}${formatAmount(halfYearlyAmount, currency)}`;
+            
+            const yearlyElement = document.querySelector('.yearly_amount');
+            const yearlyAmount = yearlyElement.getAttribute(`data-${currency}`);
+            yearlyElement.textContent = `${currencySymbol}${formatAmount(yearlyAmount, currency)}`;
+        }
+
+        function formatAmount(amount, currency) {
+            const numAmount = parseFloat(amount);
+            if (currency === 'krw') {
+                return Math.round(numAmount).toLocaleString('en-US');
+            } else {
+                return numAmount.toLocaleString('en-US', {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2
+                });
+            }
+        }
 
         function applyCoupon() {
             const couponCode = $('#couponCode').val().trim();

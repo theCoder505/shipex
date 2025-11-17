@@ -17,8 +17,8 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.js"></script>
 
-    {{-- @vite('resources/css/app.css') --}}
-    <link rel="stylesheet" href="/assets/css/tailwind.css">
+    @vite('resources/css/app.css')
+    {{-- <link rel="stylesheet" href="/assets/css/tailwind.css"> --}}
     <link rel="stylesheet" href="/assets/css/styles.css">
 
     @auth

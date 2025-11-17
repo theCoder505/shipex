@@ -585,7 +585,7 @@
     <script>
         $(document).ready(function() {
             $('.serach_input').on('keyup', function(e) {
-                if (e.key == 'Enter') {
+                if (e.key === 'Enter' || e.keyCode === 13) {
                     searchProducts(this);
                 } else {
                     // Optional: Add debounce for real-time search
@@ -596,6 +596,10 @@
                 }
             });
 
+            // Handle search icon click
+            $('img[src="/assets/images/search.png"]').on('click', function() {
+                searchProducts(this);
+            });
 
 
 
@@ -621,6 +625,10 @@
                 }
             });
         });
+
+        function filterMenufacturers() {
+            window.location.href = '/';
+        }
 
         function showFull(passedThis) {
             let activeItem = $(passedThis).closest(".relative").find(".owl-item.active img");
@@ -944,27 +952,37 @@
         }
 
 
+        // Fixed searchProducts function
         function searchProducts(element) {
-            const searchInput = $(element).siblings('.serach_input');
+            // Get the search input - handle both click on icon and input keyup
+            const searchInput = $(element).hasClass('serach_input') ?
+                $(element) :
+                $(element).siblings('.serach_input');
+
             const searchQuery = searchInput.val() ? searchInput.val().toLowerCase().trim() : '';
 
+            let visibleCount = 0;
+
+            // Iterate through all product items
             $('.product-item').each(function() {
                 const productName = $(this).data('product-name');
-                const isAskAboutSection = $(this).data('product-name') === 'ask-about-product';
+                const isAskAboutSection = productName === 'ask-about-product';
 
                 // Always show the "Ask about product" section
                 if (isAskAboutSection) {
                     $(this).removeClass('hidden');
-                    return;
+                    return; // Continue to next iteration
                 }
 
                 if (searchQuery === '') {
                     // If search is empty, show all products
                     $(this).removeClass('hidden');
+                    visibleCount++;
                 } else {
                     // If searching, show only matching products
-                    if (productName.includes(searchQuery)) {
+                    if (productName && productName.includes(searchQuery)) {
                         $(this).removeClass('hidden');
+                        visibleCount++;
                     } else {
                         $(this).addClass('hidden');
                     }
@@ -972,38 +990,37 @@
             });
 
             // Show/hide empty message based on visible products
-            updateEmptyMessage();
+            updateEmptyMessage(searchQuery, visibleCount);
         }
 
-        function updateEmptyMessage() {
-            const visibleProducts = $('.product-item:not(.hidden)').not('[data-product-name="ask-about-product"]').length;
+        function updateEmptyMessage(searchQuery, visibleCount) {
             const emptyMessage = $('.empty-products-message');
 
-            if (visibleProducts === 0 && !$('.serach_input').val().trim()) {
+            if (visibleCount === 0 && !searchQuery) {
                 // No products at all (initial empty state)
                 if (emptyMessage.length === 0) {
                     $('.all_products').prepend(`
-                <div class="col-span-3 p-4 rounded-lg bg-[#F6F6F6] mx-4 lg:w-[680px] lg:mx-auto empty-products-message">
+                <div class="col-span-3 p-4 rounded-lg bg-[#F6F6F6] dark:bg-gray-700 mx-4 lg:w-[680px] lg:mx-auto empty-products-message">
                     <img src="/assets/images/empty_box.png" alt="No products" class="w-32 rounded block mx-auto">
-                    <h3 class="text-xl my-4 text-40px text-center">
+                    <h3 class="text-xl my-4 text-40px text-center dark:text-gray-100">
                         No products found
                     </h3>
-                    <p class="text-[16px] text-gray-500 mb-2 text-center">
+                    <p class="text-[16px] text-gray-500 dark:text-gray-400 mb-2 text-center">
                         No products have been added yet!
                     </p>
                 </div>
             `);
                 }
-            } else if (visibleProducts === 0 && $('.serach_input').val().trim()) {
+            } else if (visibleCount === 0 && searchQuery) {
                 // No products found for search query
                 if (emptyMessage.length === 0) {
                     $('.all_products').prepend(`
-                <div class="col-span-3 p-4 rounded-lg bg-[#F6F6F6] mx-4 lg:w-[680px] lg:mx-auto empty-products-message">
+                <div class="col-span-3 p-4 rounded-lg bg-[#F6F6F6] dark:bg-gray-700 mx-4 lg:w-[680px] lg:mx-auto empty-products-message">
                     <img src="/assets/images/empty_box.png" alt="No products" class="w-32 rounded block mx-auto">
-                    <h3 class="text-xl my-4 text-40px text-center">
+                    <h3 class="text-xl my-4 text-40px text-center dark:text-gray-100">
                         No products found
                     </h3>
-                    <p class="text-[16px] text-gray-500 mb-2 text-center">
+                    <p class="text-[16px] text-gray-500 dark:text-gray-400 mb-2 text-center">
                         No products match your search criteria.
                     </p>
                 </div>
@@ -1013,7 +1030,7 @@
                 }
             } else {
                 // Products are visible, remove empty message
-                $('.empty-products-message').remove();
+                emptyMessage.remove();
             }
         }
     </script>

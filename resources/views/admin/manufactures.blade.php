@@ -533,7 +533,7 @@
                 <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
                     <i class="fas fa-tasks text-blue-600"></i> Application Status Management
                 </h3>
-                <form method="POST" action="/admin/ussers/manufacturers/change-status" class="w-full">
+                <form method="POST" action="/admin/users/manufacturers/change-status" class="w-full">
                     @csrf
                     <input type="hidden" name="manufacturer_uid" value="${manufacturer.manufacturer_uid}">
                     <div class="gap-4 items-start sm:items-center">

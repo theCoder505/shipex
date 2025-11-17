@@ -272,13 +272,14 @@ class CredentialsController extends Controller
         $email = $request['email'];
         $password = $request['password'];
         $wholesaler = Wholesaler::where('email', $email)->first();
+        $creation_with = $wholesaler->creation_with;
         if ($wholesaler) {
             if (password_verify($password, $wholesaler->password)) {
                 if ($wholesaler->status == 3) {
                     return redirect()->back()->with('error', 'Your account has been restricted. Please contact support for more information.')->with('email', $email)->with('password', $password);
-                }elseif ($wholesaler->status == 0) {
+                } elseif ($wholesaler->status == 0) {
                     return redirect()->back()->with('error', 'Your account is not yet activated. Please check your email for the activation link.')->with('email', $email)->with('password', $password);
-                }else{
+                } else {
                     Auth::guard('wholesaler')->login($wholesaler);
                     return redirect('/')->with('success', 'Logged In Successful!');
                 }
@@ -286,7 +287,13 @@ class CredentialsController extends Controller
                 return redirect()->back()->with('error_password', 'Password did not match')->with('email', $email)->with('password', $password);
             }
         } else {
-            return redirect()->back()->with('error_email', 'Email did not match')->with('email', $email)->with('password', $password);
+            if ($creation_with == 'google') {
+                return redirect('/wholesaler/login')->with('error', 'You already have an account with this email: ' . $email . ' with Google. Try logging with Google!');
+            } elseif ($creation_with == 'kakao') {
+                return redirect('/wholesaler/login')->with('error', 'You already have an account with this email: ' . $email . ' with Kakao. Try logging with Kakao Talk!');
+            } else {
+                return redirect()->back()->with('error_email', 'Email did not match')->with('email', $email)->with('password', $password);
+            }
         }
     }
 
@@ -368,7 +375,7 @@ class CredentialsController extends Controller
                 //     'password' => bcrypt($request['password'])
                 // ]);
                 return redirect()->back()->with('success', 'Account login password successfully changed.');
-            }else{
+            } else {
                 return redirect()->back()->with('error', 'Ensure new password matches with confirm password!');
             }
         } else {

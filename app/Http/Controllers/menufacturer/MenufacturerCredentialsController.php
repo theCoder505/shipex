@@ -47,6 +47,18 @@ class MenufacturerCredentialsController extends Controller
             'otp' => $otp,
         ];
 
+        if ($manufacturer->creation_with == 'google') {
+            return response()->json([
+                'type' => 'error',
+                'message' => 'You already have an account with this email: ' . $email . ' with Google. Try logging with Google!',
+            ]);
+        } elseif ($manufacturer->creation_with == 'kakao') {
+            return response()->json([
+                'type' => 'error',
+                'message' => 'You already have an account with this email: ' . $email . ' with Kakao. Try logging with Kakao Talk!',
+            ]);
+        }
+
         Mail::send('mail.manufacturer_signup_otp', $data, function ($message) use ($email) {
             $message->to($email)->subject("Your OTP Code for Sign-Up");
         });
@@ -64,7 +76,6 @@ class MenufacturerCredentialsController extends Controller
                 'otp' => $otp,
             ]);
         }
-
 
         return response()->json([
             'type' => 'success',
@@ -475,6 +486,7 @@ class MenufacturerCredentialsController extends Controller
         $email = $request['email'];
         $password = $request['password'];
         $manufacturer = Manufacturer::where('email', $email)->first();
+        $creation_with = $manufacturer->creation_with ?? null;
         if ($manufacturer) {
             if (password_verify($password, $manufacturer->password)) {
                 Auth::guard('manufacturer')->login($manufacturer);
@@ -483,7 +495,13 @@ class MenufacturerCredentialsController extends Controller
                 return redirect()->back()->with('error_password', 'Password did not match')->with('email', $email)->with('password', $password);
             }
         } else {
-            return redirect()->back()->with('error_email', 'Email did not match')->with('email', $email)->with('password', $password);
+            if ($creation_with == 'google') {
+                return redirect('/manufacturer/login')->with('error', 'You already have an account with this email: ' . $email . ' with Google. Try logging with Google!');
+            } elseif ($creation_with == 'kakao') {
+                return redirect('/manufacturer/login')->with('error', 'You already have an account with this email: ' . $email . ' with Kakao. Try logging with Kakao Talk!');
+            } else {
+                return redirect()->back()->with('error_email', 'Email did not match')->with('email', $email)->with('password', $password);
+            }
         }
     }
 

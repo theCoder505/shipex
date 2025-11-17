@@ -307,6 +307,10 @@
                 border-color: #374151;
             }
 
+            .rich-content pre {
+                background: #1F2937;
+            }
+
             .rich-content table {
                 background: #1F2937;
                 border-color: #374151;
@@ -353,8 +357,8 @@
         <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
             <!-- Header -->
             <div class="text-center mb-12">
-                <h1 class="text-4xl font-bold text-white mb-4">Terms of Use</h1>
-                <p class="text-lg text-gray-400">
+                <h1 class="text-4xl font-bold text-gray-900 dark:text-white mb-4">Terms of Use</h1>
+                <p class="text-lg text-gray-600 dark:text-gray-400">
                     Last updated: {{ \Carbon\Carbon::parse($updated_at)->format('F j, Y') }}
                 </p>
             </div>
@@ -369,7 +373,7 @@
                         If you have any questions about these Terms, please contact us at:
                     </p>
                     <div class="text-gray-700 dark:text-gray-300 space-y-2">
-                        <p><strong class="text-gray-900 dark:text-white">Email:</strong> {{ $contact_mail }}</p>
+                        <p><strong class="text-gray-900 dark:text-white">Email:</strong> <a href="mailto:{{ $contact_mail }}">{{ $contact_mail }}</a> </p>
                         <p><strong class="text-gray-900 dark:text-white">Address:</strong> {{ $business_address }}</p>
                         <p><strong class="text-gray-900 dark:text-white">Business Registration No:</strong> {{ $business_registration_number }}</p>
                     </div>

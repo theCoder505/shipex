@@ -18,10 +18,16 @@ class WebsiteInformation extends Model
         'PAYPAL_SECRET',
         'PAYPAL_MODE',
 
+        'google_client_id',
+        'google_client_secret',
+        'kakao_client_id',
+        'kakao_client_secret',
+
         'monthly_fee_amount',
         'half_yearly_fee_amount',
         'yearly_fee_amount',
-        
+        'exchange_rate',
+
         'open_dys',
         'open_time',
         'contact_mail',

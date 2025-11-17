@@ -234,9 +234,15 @@ class AdminPagesController extends Controller
             'PAYPAL_SECRET' => 'sometimes|string|max:255',
             'PAYPAL_MODE' => 'sometimes|string|max:255',
 
+            'google_client_id' => 'sometimes|string|max:255',
+            'google_client_secret' => 'sometimes|string|max:255',
+            'kakao_client_id' => 'sometimes|string|max:255',
+            'kakao_client_secret' => 'sometimes|string|max:255',
+
             'monthly_fee_amount' => 'sometimes|numeric',
             'half_yearly_fee_amount' => 'sometimes|numeric',
             'yearly_fee_amount' => 'sometimes|numeric',
+            'exchange_rate' => 'sometimes|numeric',
 
             'open_dys' => 'sometimes|string|max:255',
             'open_time' => 'sometimes|string|max:255',

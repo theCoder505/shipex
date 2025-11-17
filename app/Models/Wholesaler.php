@@ -13,6 +13,7 @@ class Wholesaler extends Authenticatable
 
     protected $fillable = [
         'wholesaler_uid',
+        'creation_with',
         'email',
         'password',
         'otp',

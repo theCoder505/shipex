@@ -86,7 +86,11 @@
             <span class="capitalize font-semibold text-white">{{ $package_display }}</span>
             subscription that has
             @if ($type == 'fixed')
-                ${{ $discount }}
+                @if($choosed_currency == 'krw')
+                    ₩{{ number_format($discount, 0) }}
+                @else
+                    ${{ number_format($discount, 2) }}
+                @endif
             @elseif($type == 'percentage')
                 {{ $discount }}%
             @else
@@ -94,8 +98,15 @@
             @endif
             discount.
             <br>
-            Your total billing amount is <span class="font-semibold text-white">${{ $amount }}</span> which you need to
-            pay with PayPal!
+            Your total billing amount is 
+            <span class="font-semibold text-white">
+                @if($choosed_currency == 'krw')
+                    ₩{{ number_format($amount_display, 0) }}
+                @else
+                    ${{ number_format($amount_display, 2) }}
+                @endif
+            </span> 
+            which you need to pay with PayPal!
         </p>
 
         <div class="mt-12 max-w-2xl mx-auto">
@@ -111,38 +122,80 @@
                     </p>
                 </div>
 
-                <form id="payment-form" class="space-y-6" method="POST" action="{{ route('manufacturer.process-payment') }}">
+                @if($choosed_currency == 'krw')
+                    <div class="bg-teal-900/20 border border-teal-600 rounded-lg p-4 mb-6">
+                        <div class="flex items-start gap-3">
+                            <svg class="w-5 h-5 text-teal-500 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                            </svg>
+                            <div>
+                                <p class="text-teal-200 text-sm font-medium">Currency Conversion Notice</p>
+                                <p class="text-teal-300 text-xs mt-1">
+                                    PayPal will process this payment in USD. Your amount of ₩{{ number_format($amount_display, 0) }} 
+                                    is approximately ${{ number_format($amount_usd, 2) }} USD (Exchange rate: {{ number_format($exchange_rate, 2) }} KRW per 1 USD).
+                                    <br><strong>Conversion: ₩{{ number_format($amount_display, 0) }} ÷ {{ number_format($exchange_rate, 2) }} = ${{ number_format($amount_usd, 2) }} USD</strong>
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                @else
+                    <div class="bg-blue-900/20 border border-blue-600 rounded-lg p-4 mb-6">
+                        <div class="flex items-start gap-3">
+                            <svg class="w-5 h-5 text-blue-500 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                            </svg>
+                            <div>
+                                <p class="text-blue-200 text-sm font-medium">Payment Information</p>
+                                <p class="text-blue-300 text-xs mt-1">
+                                    PayPal will process this payment in USD. Your amount of ${{ number_format($amount_display, 2) }} will be charged in USD.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                @endif
+
+                <form id="payment-form" class="space-y-6" method="POST">
                     @csrf
 
                     <input type="hidden" name="package_type" id="package_type" value="{{ $package }}">
-                    <input type="hidden" name="amount" id="amount" value="{{ $amount }}">
+                    <input type="hidden" name="amount_display" id="amount_display" value="{{ $amount_display }}">
+                    <input type="hidden" name="amount_usd" id="amount_usd" value="{{ $amount_usd }}">
+                    <input type="hidden" name="choosed_currency" id="choosed_currency" value="{{ $choosed_currency }}">
                     <input type="hidden" name="coupon_code" id="coupon_code" value="{{ request('coupon_code') ?? '' }}">
 
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
-                            <label for="full_name" class="block text-sm font-medium text-gray-300 mb-1">Full Name</label>
+                            <label for="full_name" class="block text-sm font-medium text-gray-300 mb-1">Full Name *</label>
                             <input type="text" id="full_name" placeholder="John Doe" name="full_name" required
                                 class="w-full bg-[#1a2332] text-white px-3 py-2 mt-1 border border-gray-600 rounded-md outline-none focus:border-[#0070ba]">
+                            <div class="text-red-400 text-xs mt-1 hidden" id="full_name_error">Please enter your full name</div>
                         </div>
 
                         <div>
-                            <label for="email" class="block text-sm font-medium text-gray-300 mb-1">Email</label>
+                            <label for="email" class="block text-sm font-medium text-gray-300 mb-1">Email *</label>
                             <input type="email" id="email" placeholder="john.doe@example.com" name="email" required
                                 class="w-full bg-[#1a2332] text-white px-3 py-2 mt-1 border border-gray-600 rounded-md outline-none focus:border-[#0070ba]">
+                            <div class="text-red-400 text-xs mt-1 hidden" id="email_error">Please enter a valid email address</div>
                         </div>
                     </div>
 
-                    <div class="flex gap-4 items-center mt-6">
-                        <input type="checkbox" id="terms" required class="rounded">
+                    <div class="flex gap-4 items-start mt-6">
+                        <input type="checkbox" id="terms" required class="rounded mt-1">
                         <label for="terms" class="text-gray-300 text-[14px]">
                             I agree to the <a href="/terms-of-use" class="text-[#0070ba] hover:underline">Terms of Use</a>
                             and authorize this one-time payment.
                         </label>
                     </div>
+                    <div class="text-red-400 text-xs mt-1 hidden" id="terms_error">You must accept the terms and conditions</div>
 
                     <!-- Submit Button -->
                     <button type="submit" id="pay-now-btn" class="pay-now-btn">
-                        Pay Now ${{ $amount }}
+                        Pay Now 
+                        @if($choosed_currency == 'krw')
+                            ₩{{ number_format($amount_display, 0) }}
+                        @else
+                            ${{ number_format($amount_display, 2) }}
+                        @endif
                     </button>
                 </form>
             </div>
@@ -194,7 +247,10 @@
                 })
                 .then(response => {
                     if (!response.ok) {
-                        throw new Error('Network response was not ok');
+                        // Handle HTTP errors
+                        return response.json().then(errorData => {
+                            throw new Error(errorData.message || 'Network response was not ok');
+                        });
                     }
                     return response.json();
                 })
@@ -204,21 +260,10 @@
                         if (data.redirect_url) {
                             window.location.href = data.redirect_url;
                         } else {
-                            // If no redirect URL, assume the response contains the redirect
-                            // The form submission will handle the redirect automatically
-                            this.submit();
+                            throw new Error('No redirect URL received from server');
                         }
                     } else {
-                        // Hide processing modal
-                        document.getElementById('processingModal').classList.add('hidden');
-                        document.getElementById('processingModal').classList.remove('flex');
-                        
-                        // Re-enable button
-                        submitBtn.disabled = false;
-                        submitBtn.textContent = `Pay Now ${{ $amount }}`;
-                        
-                        // Show error message
-                        alert(data.message || 'Payment initialization failed. Please try again.');
+                        throw new Error(data.message || 'Payment initialization failed');
                     }
                 })
                 .catch(error => {
@@ -230,32 +275,73 @@
                     
                     // Re-enable button
                     submitBtn.disabled = false;
-                    submitBtn.textContent = `Pay Now ${{ $amount }}`;
+                    const currency = '{{ $choosed_currency }}';
+                    const amount = '{{ $amount_display }}';
+                    if (currency === 'krw') {
+                        submitBtn.textContent = `Pay Now ₩${parseFloat(amount).toLocaleString('en-US', {maximumFractionDigits: 0})}`;
+                    } else {
+                        submitBtn.textContent = `Pay Now $${parseFloat(amount).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+                    }
                     
-                    alert('An error occurred. Please try again.');
+                    // Show error message
+                    alert('Error: ' + error.message);
                 });
         });
 
         function validateForm() {
-            const fullName = document.getElementById('full_name').value;
-            const email = document.getElementById('email').value;
+            let isValid = true;
+            const fullName = document.getElementById('full_name').value.trim();
+            const email = document.getElementById('email').value.trim();
             const terms = document.getElementById('terms').checked;
 
-            if (!fullName || !email || !terms) {
-                alert('Please fill in all required fields and accept the terms.');
-                return false;
+            // Reset error messages
+            document.getElementById('full_name_error').classList.add('hidden');
+            document.getElementById('email_error').classList.add('hidden');
+            document.getElementById('terms_error').classList.add('hidden');
+
+            // Validate full name
+            if (!fullName) {
+                document.getElementById('full_name_error').classList.remove('hidden');
+                isValid = false;
             }
 
+            // Validate email
             const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-            if (!emailRegex.test(email)) {
-                alert('Please enter a valid email address.');
-                return false;
+            if (!email || !emailRegex.test(email)) {
+                document.getElementById('email_error').classList.remove('hidden');
+                isValid = false;
             }
 
-            return true;
+            // Validate terms
+            if (!terms) {
+                document.getElementById('terms_error').classList.remove('hidden');
+                isValid = false;
+            }
+
+            return isValid;
         }
 
-        // Auto-hide processing modal after 10 seconds as a fallback
+        // Add input event listeners to clear errors when user starts typing
+        document.getElementById('full_name').addEventListener('input', function() {
+            if (this.value.trim()) {
+                document.getElementById('full_name_error').classList.add('hidden');
+            }
+        });
+
+        document.getElementById('email').addEventListener('input', function() {
+            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+            if (this.value.trim() && emailRegex.test(this.value)) {
+                document.getElementById('email_error').classList.add('hidden');
+            }
+        });
+
+        document.getElementById('terms').addEventListener('change', function() {
+            if (this.checked) {
+                document.getElementById('terms_error').classList.add('hidden');
+            }
+        });
+
+        // Auto-hide processing modal after 30 seconds as a fallback
         setTimeout(() => {
             const processingModal = document.getElementById('processingModal');
             if (processingModal && !processingModal.classList.contains('hidden')) {
@@ -265,11 +351,17 @@
                 const submitBtn = document.getElementById('pay-now-btn');
                 if (submitBtn) {
                     submitBtn.disabled = false;
-                    submitBtn.textContent = `Pay Now ${{ $amount }}`;
+                    const currency = '{{ $choosed_currency }}';
+                    const amount = '{{ $amount_display }}';
+                    if (currency === 'krw') {
+                        submitBtn.textContent = `Pay Now ₩${parseFloat(amount).toLocaleString('en-US', {maximumFractionDigits: 0})}`;
+                    } else {
+                        submitBtn.textContent = `Pay Now $${parseFloat(amount).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+                    }
                 }
                 
                 alert('The request is taking longer than expected. Please try again.');
             }
-        }, 10000);
+        }, 30000);
     </script>
 @endsection

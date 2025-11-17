@@ -13,6 +13,7 @@ class Manufacturer extends Authenticatable
 
     protected $fillable = [
         'manufacturer_uid',
+        'creation_with',
         'name',
         'email',
         'password',
