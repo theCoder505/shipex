@@ -184,7 +184,7 @@ Route::post('/update-last-active', [ChatsController::class, 'updateLastActive'])
 Route::post('/get-chat-list-item', [ChatsController::class, 'getChatListItem'])->middleware('manufacturer_or_wholesaler');
 Route::post('/mark-messages-seen', [ChatsController::class, 'markMessagesAsSeen'])->middleware('manufacturer_or_wholesaler');
 Route::post('/update-last-active', [ChatsController::class, 'updateLastActive'])->middleware('manufacturer_or_wholesaler');
-
+Route::post('/mark-all-unseen-seen', [ChatsController::class, 'markAllUnseenAsSeen']);
 
 
 

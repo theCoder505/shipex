@@ -11,10 +11,9 @@ app.use(express.json());
 
 const server = http.createServer(app);
 
-const wss = new WebSocketServer({ 
+const wss = new WebSocketServer({
     server,
     clientTracking: true,
-    // Add connection timeout handling
     perMessageDeflate: false
 });
 
@@ -49,9 +48,9 @@ wss.on('connection', (ws, req) => {
     const now = Date.now();
     const attempts = connectionAttempts.get(userId) || [];
     const recentAttempts = attempts.filter(time => now - time < CONNECTION_TIMEOUT);
-    
+
     if (recentAttempts.length >= MAX_CONNECTION_ATTEMPTS) {
-        console.log(`🚫 Blocking connection spam from user: ${userId}`);
+        console.log(`Blocking connection spam from user: ${userId}`);
         ws.close(1008, 'Too many connection attempts');
         return;
     }
@@ -60,8 +59,8 @@ wss.on('connection', (ws, req) => {
     recentAttempts.push(now);
     connectionAttempts.set(userId, recentAttempts);
 
-    console.log(`✅ New client connected: ${userId} (${userType})`);
-    
+    console.log(`New client connected: ${userId} (${userType})`);
+
     // Close any existing connection for this user
     if (clients.has(userId)) {
         const oldClient = clients.get(userId);
@@ -70,16 +69,16 @@ wss.on('connection', (ws, req) => {
         }
         clients.delete(userId);
     }
-    
+
     clients.set(userId, {
         ws,
         userType,
         connectedAt: new Date(),
         ip: req.socket.remoteAddress
     });
-    
+
     lastActive.set(userId, new Date());
-    
+
     // Initialize active chats set for this user
     if (!activeChats.has(userId)) {
         activeChats.set(userId, new Set());
@@ -104,7 +103,7 @@ wss.on('connection', (ws, req) => {
             timestamp: new Date().toISOString()
         }));
     } catch (error) {
-        console.error(`❌ Error sending connection confirmation to ${userId}:`, error);
+        console.error(`Error sending connection confirmation to ${userId}:`, error);
     }
 
     broadcastOnlineStatus(userId);
@@ -123,10 +122,6 @@ wss.on('connection', (ws, req) => {
 
                 case 'stop_typing':
                     handleStopTyping(userId, data);
-                    break;
-
-                case 'message_seen':
-                    handleMessageSeen(userId, data);
                     break;
 
                 case 'get_online_status':
@@ -148,6 +143,22 @@ wss.on('connection', (ws, req) => {
                     handleChatClosed(userId, data);
                     break;
 
+                case 'chat_message_sent':
+                    handleChatMessageSent(userId, data);
+                    break;
+
+                case 'mark_messages_seen':
+                    handleMarkMessagesSeen(userId, data);
+                    break;
+
+                case 'new_text_message':
+                    handleNewTextMessage(userId, data);
+                    break;
+
+                case 'new_file_message':
+                    handleNewFileMessage(userId, data);
+                    break;
+
                 default:
                     console.warn('Unknown message type:', data.type);
             }
@@ -157,7 +168,7 @@ wss.on('connection', (ws, req) => {
     });
 
     ws.on('close', (code, reason) => {
-        console.log(`❌ Client disconnected: ${userId} (Code: ${code}, Reason: ${reason})`);
+        console.log(`Client disconnected: ${userId} (Code: ${code}, Reason: ${reason})`);
         clearInterval(heartbeatInterval);
         clients.delete(userId);
         lastActive.delete(userId);
@@ -167,13 +178,13 @@ wss.on('connection', (ws, req) => {
     });
 
     ws.on('error', (error) => {
-        console.error(`💥 WebSocket error for user ${userId}:`, error);
+        console.error(`WebSocket error for user ${userId}:`, error);
         clearInterval(heartbeatInterval);
     });
 
     // Handle connection timeout
     ws.on('timeout', () => {
-        console.log(`⏰ Connection timeout for user ${userId}`);
+        console.log(`Connection timeout for user ${userId}`);
         ws.close(1001, 'Connection timeout');
     });
 });
@@ -182,19 +193,19 @@ wss.on('connection', (ws, req) => {
 app.post('/api/notify', (req, res) => {
     try {
         const data = req.body;
-        console.log('📩 Received notification from backend:', data.type);
+        console.log('📨 Received notification from Laravel backend:', data.type);
 
         switch (data.type) {
             case 'new_text_message':
-                notifyNewTextMessage(data);
+                handleNewTextMessageFromLaravel(data);
                 break;
 
             case 'new_file_message':
-                notifyNewFileMessage(data);
+                handleNewFileMessageFromLaravel(data);
                 break;
 
             case 'messages_marked_seen':
-                notifyMessagesSeen(data);
+                handleMessagesSeenFromLaravel(data);
                 break;
 
             case 'user_activity':
@@ -212,71 +223,21 @@ app.post('/api/notify', (req, res) => {
     }
 });
 
-// Enhanced active chat tracking
-function isChatActive(userId, withUserId) {
-    if (!activeChats.has(userId)) {
-        console.log(`📱 No active chats found for user ${userId}`);
-        return false;
-    }
-    
-    const isActive = activeChats.get(userId).has(withUserId);
-    console.log(`💬 Chat active check: ${userId} with ${withUserId} = ${isActive}`);
-    
-    return isActive;
-}
-
-// Handle chat opened - track active chat
-function handleChatOpened(userId, data) {
-    const { withUserId } = data;
-    
-    if (!withUserId) return;
-
-    // Add to active chats
-    if (!activeChats.has(userId)) {
-        activeChats.set(userId, new Set());
-    }
-    activeChats.get(userId).add(withUserId);
-
-    console.log(`🔓 User ${userId} opened chat with ${withUserId}`);
-}
-
-// Handle chat closed - remove from active chats
-function handleChatClosed(userId, data) {
-    const { withUserId } = data;
-    
-    if (!withUserId) return;
-
-    // Remove from active chats
-    if (activeChats.has(userId)) {
-        activeChats.get(userId).delete(withUserId);
-    }
-
-    console.log(`🔒 User ${userId} closed chat with ${withUserId}`);
-}
-
-
-
-
-
-// Notify about new text message (called by Laravel after DB save)
-async function notifyNewTextMessage(data) {
+// Handle new text message from Laravel
+function handleNewTextMessageFromLaravel(data) {
     const { senderId, receiverId, message, messageUid, timestamp } = data;
-    
+
     if (!receiverId || !message) {
-        console.warn('Invalid message data');
+        console.warn('Invalid message data from Laravel');
         return;
     }
 
-    // Check if receiver is online (either connected or active within 15 minutes)
-    const receiverIsOnline = isUserOnline(receiverId);
-    console.log(`📨 Text message from ${senderId} to ${receiverId}, receiver online: ${receiverIsOnline}`);
-
-    // Get sender info for notification
-    const senderInfo = await getUserInfoForNotification(senderId, getSenderType(senderId));
+    console.log(`📨 Laravel text message from ${senderId} to ${receiverId}`);
 
     // Check if receiver has chat open with sender
     const chatIsOpen = isChatActive(receiverId, senderId);
-    
+    console.log(`Chat open status: ${receiverId} with ${senderId} = ${chatIsOpen}`);
+
     // Send to receiver if they have an active WebSocket connection
     if (clients.has(receiverId)) {
         const receiver = clients.get(receiverId);
@@ -285,8 +246,6 @@ async function notifyNewTextMessage(data) {
                 type: 'new_message',
                 messageType: 'text',
                 senderId: senderId,
-                senderName: senderInfo.senderName,
-                profilePicture: senderInfo.profilePicture,
                 receiverId: receiverId,
                 message: message,
                 messageUid: messageUid,
@@ -297,51 +256,42 @@ async function notifyNewTextMessage(data) {
 
             try {
                 receiver.ws.send(JSON.stringify(messageData));
-                console.log(`✅ Text message notification sent to ${receiverId}`);
+                console.log(`✅ Text message sent to ${receiverId}`);
             } catch (error) {
-                console.error(`❌ Failed to send text message to ${receiverId}:`, error);
-                clients.delete(receiverId); // Remove broken connection
+                console.error(`Failed to send text message to ${receiverId}:`, error);
             }
 
-            updateChatList(receiverId, senderId);
-            
+            // Update chat list for receiver
+            updateChatList(receiverId, senderId, {
+                message: message,
+                messageType: 'text',
+                timestamp: timestamp
+            });
+
             // If chat is open, automatically mark as seen
             if (chatIsOpen) {
-                console.log(`👁️ Auto-marking text message ${messageUid} as seen`);
-                
+                console.log(`👁️ Auto-marking text message ${messageUid} as seen (chat is open)`);
                 // Notify sender that message was seen
-                setTimeout(() => {
-                    if (clients.has(senderId)) {
-                        const sender = clients.get(senderId);
-                        if (sender.ws.readyState === 1) {
-                            try {
-                                sender.ws.send(JSON.stringify({
-                                    type: 'messages_seen',
-                                    senderId: receiverId,
-                                    messageUids: [messageUid],
-                                    timestamp: new Date().toISOString(),
-                                    autoSeen: true
-                                }));
-                                console.log(`✅ Auto-seen notification sent to sender ${senderId}`);
-                            } catch (error) {
-                                console.error(`❌ Failed to send auto-seen to ${senderId}:`, error);
-                            }
+                if (clients.has(senderId)) {
+                    const sender = clients.get(senderId);
+                    if (sender.ws.readyState === 1) {
+                        try {
+                            sender.ws.send(JSON.stringify({
+                                type: 'message_seen',
+                                messageUid: messageUid,
+                                seenBy: receiverId,
+                                timestamp: new Date().toISOString()
+                            }));
+                            console.log(`✅ Notified sender ${senderId} about seen message`);
+                        } catch (error) {
+                            console.error(`Failed to notify sender ${senderId}:`, error);
                         }
                     }
-                }, 100);
+                }
             }
         }
-    } else if (receiverIsOnline) {
-        console.log(`📱 Receiver ${receiverId} is online (recent activity) but not connected via WebSocket`);
-        // User is considered online due to recent activity but doesn't have active WebSocket
-        // The notification will be shown when they next load the page or reconnect
-        
-        // We can still update the chat list for when they reconnect
-        updateChatList(receiverId, senderId);
-    } else {
-        console.log(`❌ Receiver ${receiverId} is offline, message stored for later`);
     }
-    
+
     // Update sender's chat list regardless of receiver's online status
     if (clients.has(senderId)) {
         const sender = clients.get(senderId);
@@ -350,33 +300,32 @@ async function notifyNewTextMessage(data) {
                 sender.ws.send(JSON.stringify({
                     type: 'update_chat_list',
                     fromUserId: receiverId,
-                    timestamp: new Date().toISOString()
+                    timestamp: new Date().toISOString(),
+                    isSentMessage: true,
+                    messageData: {
+                        message: message,
+                        messageType: 'text',
+                        timestamp: timestamp
+                    }
                 }));
                 console.log(`✅ Chat list updated for sender ${senderId}`);
             } catch (error) {
-                console.error(`❌ Failed to update chat list for sender ${senderId}:`, error);
+                console.error(`Failed to update chat list for sender ${senderId}:`, error);
             }
         }
     }
 }
 
-
-
-// Notify about new file message (called by Laravel after DB save)
-async function notifyNewFileMessage(data) {
+// Handle new file message from Laravel
+function handleNewFileMessageFromLaravel(data) {
     const { senderId, receiverId, fileData, messageText, messageUid, timestamp } = data;
-    
+
     if (!receiverId || !fileData) {
-        console.warn('Invalid file message data');
+        console.warn('Invalid file message data from Laravel');
         return;
     }
 
-    // Check if receiver is online (either connected or active within 15 minutes)
-    const receiverIsOnline = isUserOnline(receiverId);
-    console.log(`📎 File message from ${senderId} to ${receiverId}, receiver online: ${receiverIsOnline}`);
-
-    // Get sender info for notification
-    const senderInfo = await getUserInfoForNotification(senderId, getSenderType(senderId));
+    console.log(`📎 Laravel file message from ${senderId} to ${receiverId}`);
 
     // Check if receiver has chat open with sender
     const chatIsOpen = isChatActive(receiverId, senderId);
@@ -389,8 +338,6 @@ async function notifyNewFileMessage(data) {
                 type: 'new_message',
                 messageType: 'file',
                 senderId: senderId,
-                senderName: senderInfo.senderName,
-                profilePicture: senderInfo.profilePicture,
                 receiverId: receiverId,
                 fileData: fileData,
                 messageText: messageText || '',
@@ -402,51 +349,42 @@ async function notifyNewFileMessage(data) {
 
             try {
                 receiver.ws.send(JSON.stringify(messageData));
-                console.log(`✅ File message notification sent to ${receiverId}`);
+                console.log(`✅ File message sent to ${receiverId}`);
             } catch (error) {
-                console.error(`❌ Failed to send file message to ${receiverId}:`, error);
-                clients.delete(receiverId); // Remove broken connection
+                console.error(`Failed to send file message to ${receiverId}:`, error);
             }
 
-            updateChatList(receiverId, senderId);
-            
+            // Update chat list for receiver
+            updateChatList(receiverId, senderId, {
+                message: messageText || 'File',
+                messageType: 'file',
+                timestamp: timestamp
+            });
+
             // If chat is open, automatically mark as seen
             if (chatIsOpen) {
-                console.log(`👁️ Auto-marking file message ${messageUid} as seen`);
-                
+                console.log(`👁️ Auto-marking file message ${messageUid} as seen (chat is open)`);
                 // Notify sender that message was seen
-                setTimeout(() => {
-                    if (clients.has(senderId)) {
-                        const sender = clients.get(senderId);
-                        if (sender.ws.readyState === 1) {
-                            try {
-                                sender.ws.send(JSON.stringify({
-                                    type: 'messages_seen',
-                                    senderId: receiverId,
-                                    messageUids: [messageUid],
-                                    timestamp: new Date().toISOString(),
-                                    autoSeen: true
-                                }));
-                                console.log(`✅ Auto-seen notification sent to sender ${senderId}`);
-                            } catch (error) {
-                                console.error(`❌ Failed to send auto-seen to ${senderId}:`, error);
-                            }
+                if (clients.has(senderId)) {
+                    const sender = clients.get(senderId);
+                    if (sender.ws.readyState === 1) {
+                        try {
+                            sender.ws.send(JSON.stringify({
+                                type: 'message_seen',
+                                messageUid: messageUid,
+                                seenBy: receiverId,
+                                timestamp: new Date().toISOString()
+                            }));
+                            console.log(`✅ Notified sender ${senderId} about seen file`);
+                        } catch (error) {
+                            console.error(`Failed to notify sender ${senderId}:`, error);
                         }
                     }
-                }, 100);
+                }
             }
         }
-    } else if (receiverIsOnline) {
-        console.log(`📱 Receiver ${receiverId} is online (recent activity) but not connected via WebSocket`);
-        // User is considered online due to recent activity but doesn't have active WebSocket
-        // The notification will be shown when they next load the page or reconnect
-        
-        // We can still update the chat list for when they reconnect
-        updateChatList(receiverId, senderId);
-    } else {
-        console.log(`❌ Receiver ${receiverId} is offline, file message stored for later`);
     }
-    
+
     // Update sender's chat list regardless of receiver's online status
     if (clients.has(senderId)) {
         const sender = clients.get(senderId);
@@ -455,33 +393,32 @@ async function notifyNewFileMessage(data) {
                 sender.ws.send(JSON.stringify({
                     type: 'update_chat_list',
                     fromUserId: receiverId,
-                    timestamp: new Date().toISOString()
+                    timestamp: new Date().toISOString(),
+                    isSentMessage: true,
+                    messageData: {
+                        message: messageText || 'File',
+                        messageType: 'file',
+                        timestamp: timestamp
+                    }
                 }));
                 console.log(`✅ Chat list updated for sender ${senderId}`);
             } catch (error) {
-                console.error(`❌ Failed to update chat list for sender ${senderId}:`, error);
+                console.error(`Failed to update chat list for sender ${senderId}:`, error);
             }
         }
     }
 }
 
-
-
-
-
-
-
-
-// Notify about messages being seen (called by Laravel)
-function notifyMessagesSeen(data) {
+// Handle messages seen from Laravel
+function handleMessagesSeenFromLaravel(data) {
     const { senderId, receiverId, messageUids } = data;
-    
+
     if (!receiverId || !messageUids) {
-        console.warn('Invalid messages seen data');
+        console.warn('Invalid messages seen data from Laravel');
         return;
     }
 
-    console.log(`👀 Notifying ${receiverId} that messages were seen by ${senderId}`);
+    console.log(`👀 Laravel: Messages seen by ${senderId} from ${receiverId}`);
 
     // Notify the original sender that their messages were seen
     if (clients.has(receiverId)) {
@@ -496,51 +433,340 @@ function notifyMessagesSeen(data) {
                 }));
                 console.log(`✅ Messages seen notification sent to ${receiverId}`);
             } catch (error) {
-                console.error(`❌ Failed to send messages seen to ${receiverId}:`, error);
-                clients.delete(receiverId);
+                console.error(`Failed to send messages seen to ${receiverId}:`, error);
             }
         }
     }
 }
 
-// Update the lastActive tracking to be more robust
-function updateUserActivity(data) {
-    const { userId, timestamp } = data;
-    lastActive.set(userId, new Date());
-    console.log(`🔄 User activity updated: ${userId}`);
-    
-    // Broadcast online status if user was previously offline
-    if (!clients.has(userId)) {
-        broadcastOnlineStatus(userId, false);
+// Enhanced active chat tracking
+function isChatActive(userId, withUserId) {
+    if (!activeChats.has(userId)) {
+        return false;
     }
+
+    const isActive = activeChats.get(userId).has(withUserId);
+    console.log(`Chat active check: ${userId} with ${withUserId} = ${isActive}`);
+
+    return isActive;
 }
 
-// Enhanced isUserOnline function
-function isUserOnline(userId) {
-    if (clients.has(userId)) {
-        const client = clients.get(userId);
-        if (client.ws.readyState === 1) {
-            return true;
+// Handle chat opened - track active chat
+function handleChatOpened(userId, data) {
+    const { withUserId } = data;
+
+    if (!withUserId) return;
+
+    // Add to active chats
+    if (!activeChats.has(userId)) {
+        activeChats.set(userId, new Set());
+    }
+    activeChats.get(userId).add(withUserId);
+
+    console.log(`🔓 User ${userId} opened chat with ${withUserId}`);
+
+    // When a chat is opened, notify the other user and mark messages as seen
+    if (clients.has(withUserId)) {
+        const otherUser = clients.get(withUserId);
+        if (otherUser.ws.readyState === 1) {
+            try {
+                otherUser.ws.send(JSON.stringify({
+                    type: 'user_chat_opened',
+                    userId: userId,
+                    timestamp: new Date().toISOString()
+                }));
+                console.log(`✅ Notified ${withUserId} that ${userId} opened chat`);
+            } catch (error) {
+                console.error(`Failed to notify ${withUserId}:`, error);
+            }
         }
     }
-    
-    // Check last activity - user is online if active within 15 minutes
-    const lastActivity = lastActive.get(userId);
-    if (lastActivity) {
-        const minutesSinceLastActivity = (new Date() - lastActivity) / (1000 * 60);
-        return minutesSinceLastActivity <= 15; // 15-minute window
-    }
-    
-    return false;
+
+    // Mark all unseen messages as seen
+    markAllUnseenMessagesAsSeen(userId, withUserId);
 }
 
+// Handle chat closed - remove from active chats
+function handleChatClosed(userId, data) {
+    const { withUserId } = data;
 
+    if (!withUserId) return;
 
+    // Remove from active chats
+    if (activeChats.has(userId)) {
+        activeChats.get(userId).delete(withUserId);
+    }
+
+    console.log(`🔒 User ${userId} closed chat with ${withUserId}`);
+}
+
+function handleChatMessageSent(senderId, data) {
+    const { receiverId, messageData } = data;
+    
+    if (!receiverId) return;
+
+    console.log(`💬 User ${senderId} sent message to ${receiverId}`);
+    
+    // Update sender's own chat list across all their devices
+    if (clients.has(senderId)) {
+        const sender = clients.get(senderId);
+        if (sender.ws.readyState === 1) {
+            try {
+                sender.ws.send(JSON.stringify({
+                    type: 'update_chat_list',
+                    fromUserId: receiverId,
+                    timestamp: new Date().toISOString(),
+                    isSentMessage: true
+                }));
+                console.log(`✅ Chat list updated for sender ${senderId}`);
+            } catch (error) {
+                console.error(`Failed to update chat list for sender ${senderId}:`, error);
+            }
+        }
+    }
+}
+
+// Handle new text message from client (direct WebSocket)
+function handleNewTextMessage(senderId, data) {
+    const { receiverId, message, messageUid, timestamp } = data;
+
+    if (!receiverId || !message) {
+        console.warn('Invalid message data from client');
+        return;
+    }
+
+    console.log(`📨 Client text message from ${senderId} to ${receiverId}`);
+
+    // Check if receiver has chat open with sender
+    const chatIsOpen = isChatActive(receiverId, senderId);
+
+    // Send to receiver if they have an active WebSocket connection
+    if (clients.has(receiverId)) {
+        const receiver = clients.get(receiverId);
+        if (receiver.ws.readyState === 1) {
+            const messageData = {
+                type: 'new_message',
+                messageType: 'text',
+                senderId: senderId,
+                receiverId: receiverId,
+                message: message,
+                messageUid: messageUid,
+                timestamp: timestamp,
+                seen: chatIsOpen,
+                chatIsOpen: chatIsOpen
+            };
+
+            try {
+                receiver.ws.send(JSON.stringify(messageData));
+                console.log(`✅ Text message sent to ${receiverId}`);
+            } catch (error) {
+                console.error(`Failed to send text message to ${receiverId}:`, error);
+            }
+
+            // Update chat list for receiver
+            updateChatList(receiverId, senderId, {
+                message: message,
+                messageType: 'text',
+                timestamp: timestamp
+            });
+
+            // If chat is open, automatically mark as seen
+            if (chatIsOpen) {
+                console.log(`👁️ Auto-marking text message ${messageUid} as seen (chat is open)`);
+                // Notify sender that message was seen
+                if (clients.has(senderId)) {
+                    const sender = clients.get(senderId);
+                    if (sender.ws.readyState === 1) {
+                        try {
+                            sender.ws.send(JSON.stringify({
+                                type: 'message_seen',
+                                messageUid: messageUid,
+                                seenBy: receiverId,
+                                timestamp: new Date().toISOString()
+                            }));
+                            console.log(`✅ Notified sender ${senderId} about seen message`);
+                        } catch (error) {
+                            console.error(`Failed to notify sender ${senderId}:`, error);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // Update sender's chat list regardless of receiver's online status
+    if (clients.has(senderId)) {
+        const sender = clients.get(senderId);
+        if (sender.ws.readyState === 1) {
+            try {
+                sender.ws.send(JSON.stringify({
+                    type: 'update_chat_list',
+                    fromUserId: receiverId,
+                    timestamp: new Date().toISOString(),
+                    isSentMessage: true,
+                    messageData: {
+                        message: message,
+                        messageType: 'text',
+                        timestamp: timestamp
+                    }
+                }));
+                console.log(`✅ Chat list updated for sender ${senderId}`);
+            } catch (error) {
+                console.error(`Failed to update chat list for sender ${senderId}:`, error);
+            }
+        }
+    }
+}
+
+// Handle new file message from client (direct WebSocket)
+function handleNewFileMessage(senderId, data) {
+    const { receiverId, fileData, messageText, messageUid, timestamp } = data;
+
+    if (!receiverId || !fileData) {
+        console.warn('Invalid file message data from client');
+        return;
+    }
+
+    console.log(`📎 Client file message from ${senderId} to ${receiverId}`);
+
+    // Check if receiver has chat open with sender
+    const chatIsOpen = isChatActive(receiverId, senderId);
+
+    // Send to receiver if they have an active WebSocket connection
+    if (clients.has(receiverId)) {
+        const receiver = clients.get(receiverId);
+        if (receiver.ws.readyState === 1) {
+            const messageData = {
+                type: 'new_message',
+                messageType: 'file',
+                senderId: senderId,
+                receiverId: receiverId,
+                fileData: fileData,
+                messageText: messageText || '',
+                messageUid: messageUid,
+                timestamp: timestamp,
+                seen: chatIsOpen,
+                chatIsOpen: chatIsOpen
+            };
+
+            try {
+                receiver.ws.send(JSON.stringify(messageData));
+                console.log(`✅ File message sent to ${receiverId}`);
+            } catch (error) {
+                console.error(`Failed to send file message to ${receiverId}:`, error);
+            }
+
+            // Update chat list for receiver
+            updateChatList(receiverId, senderId, {
+                message: messageText || 'File',
+                messageType: 'file',
+                timestamp: timestamp
+            });
+
+            // If chat is open, automatically mark as seen
+            if (chatIsOpen) {
+                console.log(`👁️ Auto-marking file message ${messageUid} as seen (chat is open)`);
+                // Notify sender that message was seen
+                if (clients.has(senderId)) {
+                    const sender = clients.get(senderId);
+                    if (sender.ws.readyState === 1) {
+                        try {
+                            sender.ws.send(JSON.stringify({
+                                type: 'message_seen',
+                                messageUid: messageUid,
+                                seenBy: receiverId,
+                                timestamp: new Date().toISOString()
+                            }));
+                            console.log(`✅ Notified sender ${senderId} about seen file`);
+                        } catch (error) {
+                            console.error(`Failed to notify sender ${senderId}:`, error);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // Update sender's chat list regardless of receiver's online status
+    if (clients.has(senderId)) {
+        const sender = clients.get(senderId);
+        if (sender.ws.readyState === 1) {
+            try {
+                sender.ws.send(JSON.stringify({
+                    type: 'update_chat_list',
+                    fromUserId: receiverId,
+                    timestamp: new Date().toISOString(),
+                    isSentMessage: true,
+                    messageData: {
+                        message: messageText || 'File',
+                        messageType: 'file',
+                        timestamp: timestamp
+                    }
+                }));
+                console.log(`✅ Chat list updated for sender ${senderId}`);
+            } catch (error) {
+                console.error(`Failed to update chat list for sender ${senderId}:`, error);
+            }
+        }
+    }
+}
+
+// Handle marking messages as seen (sent from client)
+function handleMarkMessagesSeen(userId, data) {
+    const { messageUids, senderId } = data;
+
+    if (!messageUids || !senderId) {
+        console.warn('Invalid mark messages seen data');
+        return;
+    }
+
+    console.log(`👀 User ${userId} marking messages as seen from ${senderId}:`, messageUids);
+
+    // Notify the sender that their messages were seen
+    if (clients.has(senderId)) {
+        const sender = clients.get(senderId);
+        if (sender.ws.readyState === 1) {
+            try {
+                sender.ws.send(JSON.stringify({
+                    type: 'messages_seen',
+                    senderId: userId,
+                    messageUids: messageUids,
+                    timestamp: new Date().toISOString()
+                }));
+                console.log(`✅ Notified sender ${senderId} about seen messages`);
+            } catch (error) {
+                console.error(`Failed to notify sender ${senderId}:`, error);
+            }
+        }
+    }
+}
+
+// Mark all unseen messages as seen when chat is opened
+function markAllUnseenMessagesAsSeen(userId, withUserId) {
+    console.log(`🔵 Marking all unseen messages from ${withUserId} as seen for ${userId}`);
+    
+    // Notify the other user that all their messages were seen
+    if (clients.has(withUserId)) {
+        const sender = clients.get(withUserId);
+        if (sender.ws.readyState === 1) {
+            try {
+                sender.ws.send(JSON.stringify({
+                    type: 'all_messages_seen',
+                    seenBy: userId,
+                    timestamp: new Date().toISOString()
+                }));
+                console.log(`✅ Notified ${withUserId} that all messages were seen by ${userId}`);
+            } catch (error) {
+                console.error(`Failed to notify ${withUserId}:`, error);
+            }
+        }
+    }
+}
 
 // Handle typing indicator
 function handleTyping(senderId, data) {
     const { receiverId } = data;
-    
+
     if (!receiverId) return;
 
     typingStatus.set(`${senderId}_${receiverId}`, true);
@@ -555,7 +781,7 @@ function handleTyping(senderId, data) {
                     isTyping: true
                 }));
             } catch (error) {
-                console.error(`❌ Failed to send typing indicator to ${receiverId}:`, error);
+                console.error(`Failed to send typing indicator to ${receiverId}:`, error);
             }
         }
     }
@@ -564,7 +790,7 @@ function handleTyping(senderId, data) {
 // Handle stop typing
 function handleStopTyping(senderId, data) {
     const { receiverId } = data;
-    
+
     if (!receiverId) return;
 
     typingStatus.delete(`${senderId}_${receiverId}`);
@@ -579,51 +805,34 @@ function handleStopTyping(senderId, data) {
                     isTyping: false
                 }));
             } catch (error) {
-                console.error(`❌ Failed to send stop typing to ${receiverId}:`, error);
+                console.error(`Failed to send stop typing to ${receiverId}:`, error);
             }
         }
     }
 }
 
-// Handle message seen (sent from client)
-function handleMessageSeen(senderId, data) {
-    const { receiverId, messageUids } = data;
-    
-    if (!receiverId) return;
-
-    console.log(`👀 User ${senderId} marked messages as seen for ${receiverId}`);
-
-    // Notify the sender that their messages were seen
-    if (clients.has(receiverId)) {
-        const receiver = clients.get(receiverId);
-        if (receiver.ws.readyState === 1) {
-            try {
-                receiver.ws.send(JSON.stringify({
-                    type: 'messages_seen',
-                    senderId: senderId,
-                    messageUids: messageUids,
-                    timestamp: new Date().toISOString()
-                }));
-            } catch (error) {
-                console.error(`❌ Failed to send message seen to ${receiverId}:`, error);
-            }
-        }
-    }
-}
-
-// Update chat list
-function updateChatList(userId, newMessageFrom) {
+// Enhanced update chat list function
+function updateChatList(userId, newMessageFrom, messageData = null) {
     if (clients.has(userId)) {
         const user = clients.get(userId);
         if (user.ws.readyState === 1) {
             try {
-                user.ws.send(JSON.stringify({
+                const payload = {
                     type: 'update_chat_list',
                     fromUserId: newMessageFrom,
                     timestamp: new Date().toISOString()
-                }));
+                };
+
+                // Add message data if available for creating new chat tabs
+                if (messageData) {
+                    payload.messageData = messageData;
+                    payload.senderId = newMessageFrom;
+                }
+
+                user.ws.send(JSON.stringify(payload));
+                console.log(`✅ Chat list updated for ${userId} from ${newMessageFrom}`);
             } catch (error) {
-                console.error(`❌ Failed to update chat list for ${userId}:`, error);
+                console.error(`Failed to update chat list for ${userId}:`, error);
             }
         }
     }
@@ -635,7 +844,7 @@ function sendOnlineStatus(requesterId, checkUserId) {
 
     const requester = clients.get(requesterId);
     const isOnline = clients.has(checkUserId);
-    
+
     let lastActiveTime = null;
     if (!isOnline && lastActive.has(checkUserId)) {
         lastActiveTime = lastActive.get(checkUserId).toISOString();
@@ -651,7 +860,7 @@ function sendOnlineStatus(requesterId, checkUserId) {
                 timestamp: new Date().toISOString()
             }));
         } catch (error) {
-            console.error(`❌ Failed to send online status to ${requesterId}:`, error);
+            console.error(`Failed to send online status to ${requesterId}:`, error);
         }
     }
 }
@@ -670,50 +879,41 @@ function broadcastOnlineStatus(userId, isDisconnect = false) {
             try {
                 client.ws.send(JSON.stringify(payload));
             } catch (error) {
-                console.error(`❌ Failed to broadcast status to ${clientId}:`, error);
+                console.error(`Failed to broadcast status to ${clientId}:`, error);
             }
         }
     });
 }
 
-// Helper function to determine sender type based on ID pattern
-function getSenderType(userId) {
-    if (userId.startsWith('WS_') || userId.includes('wholesaler')) {
-        return 'wholesaler';
-    } else if (userId.startsWith('MN_') || userId.includes('manufacturer')) {
-        return 'manufacturer';
+// Update the lastActive tracking to be more robust
+function updateUserActivity(data) {
+    const { userId, timestamp } = data;
+    lastActive.set(userId, new Date());
+    console.log(`🔄 User activity updated: ${userId}`);
+
+    // Broadcast online status if user was previously offline
+    if (!clients.has(userId)) {
+        broadcastOnlineStatus(userId, false);
     }
-    return 'unknown';
 }
 
-// Function to get user info for notifications
-async function getUserInfoForNotification(userId, userType) {
-    try {
-        let senderName = 'User';
-        let profilePicture = null;
-        
-        // Based on your user ID patterns
-        if (userType === 'wholesaler') {
-            senderName = 'Wholesaler';
-        } else if (userType === 'manufacturer') {
-            senderName = 'Manufacturer';
+// Enhanced isUserOnline function
+function isUserOnline(userId) {
+    if (clients.has(userId)) {
+        const client = clients.get(userId);
+        if (client.ws.readyState === 1) {
+            return true;
         }
-        
-        // Generate avatar
-        profilePicture = `https://ui-avatars.com/api/?name=${encodeURIComponent(senderName)}&background=3b82f6&color=fff`;
-        
-        return {
-            senderName: senderName,
-            profilePicture: profilePicture
-        };
-        
-    } catch (error) {
-        console.error('Error getting user info for notification:', error);
-        return {
-            senderName: 'User',
-            profilePicture: 'https://ui-avatars.com/api/?name=User&background=3b82f6&color=fff'
-        };
     }
+
+    // Check last activity - user is online if active within 15 minutes
+    const lastActivity = lastActive.get(userId);
+    if (lastActivity) {
+        const minutesSinceLastActivity = (new Date() - lastActivity) / (1000 * 60);
+        return minutesSinceLastActivity <= 15; // 15-minute window
+    }
+
+    return false;
 }
 
 // Clean up old connection attempts periodically
@@ -733,7 +933,7 @@ setInterval(() => {
 setInterval(() => {
     const now = new Date();
     const inactiveThreshold = 1000 * 60 * 15; // 15 minutes
-    
+
     clients.forEach((client, userId) => {
         const lastActiveTime = lastActive.get(userId);
         if (lastActiveTime && (now - lastActiveTime) > inactiveThreshold) {
@@ -741,7 +941,7 @@ setInterval(() => {
             try {
                 client.ws.close(1000, 'Inactive connection');
             } catch (error) {
-                console.error(`❌ Error closing inactive connection for ${userId}:`, error);
+                console.error(`Error closing inactive connection for ${userId}:`, error);
             }
         }
     });
@@ -759,20 +959,6 @@ app.get('/health', (req, res) => {
     });
 });
 
-// Debug endpoint to see active chats
-app.get('/debug/active-chats', (req, res) => {
-    const activeChatsObj = {};
-    activeChats.forEach((chatSet, userId) => {
-        activeChatsObj[userId] = Array.from(chatSet);
-    });
-    
-    res.json({
-        activeChats: activeChatsObj,
-        connectedClients: Array.from(clients.keys()),
-        timestamp: new Date().toISOString()
-    });
-});
-
 // Server status endpoint
 app.get('/status', (req, res) => {
     res.json({
@@ -787,25 +973,25 @@ app.get('/status', (req, res) => {
 
 // Start server
 server.listen(port, '0.0.0.0', () => {
-    console.log(`🚀 WebSocket server running on ws://localhost:${port}`);
-    console.log(`🌐 HTTP API available at http://localhost:${port}`);
-    console.log(`❤️ Health check available at http://localhost:${port}/health`);
-    console.log(`📊 Server status at http://localhost:${port}/status`);
+    console.log(`WebSocket server running on ws://localhost:${port}`);
+    console.log(`HTTP API available at http://localhost:${port}`);
+    console.log(`Health check available at http://localhost:${port}/health`);
+    console.log(`Server status at http://localhost:${port}/status`);
 });
 
 // Handle uncaught exceptions
 process.on('uncaughtException', (error) => {
-    console.error('💥 Uncaught Exception:', error);
+    console.error('Uncaught Exception:', error);
 });
 
 process.on('unhandledRejection', (reason, promise) => {
-    console.error('💥 Unhandled Rejection at:', promise, 'reason:', reason);
+    console.error('Unhandled Rejection at:', promise, 'reason:', reason);
 });
 
 // Graceful shutdown
 process.on('SIGTERM', () => {
-    console.log('🛑 Shutting down WebSocket server...');
-    
+    console.log('Shutting down WebSocket server...');
+
     clients.forEach((client) => {
         try {
             client.ws.close(1001, 'Server shutting down');
@@ -813,7 +999,7 @@ process.on('SIGTERM', () => {
             console.error('Error closing client connection:', error);
         }
     });
-    
+
     wss.close(() => {
         server.close(() => {
             console.log('✅ WebSocket server closed gracefully');

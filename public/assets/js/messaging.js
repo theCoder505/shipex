@@ -1,19 +1,7 @@
 var csrf_token = $(".csrf_token").val();
 var sending_to = $(".sending_to").val();
 var currentFile = null;
-
-const emojis = [
-    '😀', '😃', '😄', '😁', '😆', '😅', '😂', '🤣', '😊', '😇',
-    '🙂', '🙃', '😉', '😌', '😍', '🥰', '😘', '😗', '😙', '😚',
-    '😋', '😛', '😝', '😜', '🤪', '🤨', '🧐', '🤓', '😎', '🤩',
-    '🥳', '😏', '😒', '😞', '😔', '😟', '😕', '🙁', '😣', '😖',
-    '😫', '😩', '🥺', '😢', '😭', '😤', '😠', '😡', '🤬', '🤯',
-    '😳', '🥵', '🥶', '😱', '😨', '😰', '😥', '😓', '🤗', '🤔',
-    '👍', '👎', '👌', '✌️', '🤞', '🤟', '🤘', '🤙', '👈', '👉',
-    '👆', '👇', '☝️', '✋', '🤚', '🖐️', '🖖', '👋', '🤝', '🙏',
-    '❤️', '🧡', '💛', '💚', '💙', '💜', '🖤', '🤍', '🤎', '💔',
-    '❣️', '💕', '💞', '💓', '💗', '💖', '💘', '💝', '🎉', '🎊'
-];
+var previousChatUserId = null;
 
 $(document).ready(function () {
     $('#fileInput').on('change', function (e) {
@@ -24,22 +12,25 @@ $(document).ready(function () {
         $('#fileInput').click();
     });
 
-    $('.message_box').on('keypress', function (e) {
-        if (e.which === 13 && !e.shiftKey) {
-            e.preventDefault();
-            sendMessage($('.send-btn'));
+    function handleEnterKey(e) {
+        if (e.which === 13) {
+            if (window.innerWidth > 768) {
+                if (e.shiftKey) {
+                    return;
+                } else {
+                    e.preventDefault();
+                    sendMessage($('.send-btn'));
+                }
+            }
         }
-    });
+    }
+
+    $('.message_box').on('keypress', handleEnterKey);
+    $('.message_box').on('keydown', handleEnterKey);
 
     $('.message_box').on('input', function () {
         this.style.height = 'auto';
         this.style.height = (this.scrollHeight) + 'px';
-    });
-
-    $(document).on('click', function (e) {
-        if (!$(e.target).closest('.emoji-container').length) {
-            $('#emojiPicker').remove();
-        }
     });
 });
 
@@ -107,9 +98,14 @@ function uploadFile(messageText = '') {
     formData.append('message_text', messageText);
     formData.append('_token', csrf_token);
 
-    // Display message immediately with loading indicator
     const tempMessageId = 'temp_' + Date.now();
     displayFileMessageWithLoader(currentFile, true, messageText, tempMessageId);
+
+    updateChatListOnSend({
+        messageType: 'file',
+        message: messageText || 'File sent',
+        timestamp: new Date().toISOString()
+    });
 
     $.ajax({
         url: '/send-file-message',
@@ -119,9 +115,17 @@ function uploadFile(messageText = '') {
         contentType: false,
         success: function (response) {
             if (response.status === 'success') {
-                // Remove temp message and display actual message
                 $(`#${tempMessageId}`).remove();
-                displayFileMessage(response.file_data, true, response.message_text);
+                displayFileMessage(response.file_data, true, response.message_text, response.message_uid, false);
+
+                if (window.ws && window.ws.readyState === WebSocket.OPEN) {
+                    window.ws.send(JSON.stringify({
+                        type: 'update_chat_list',
+                        fromUserId: sending_to,
+                        timestamp: new Date().toISOString()
+                    }));
+                }
+
                 cancelFileUpload();
                 scrollToBottom();
             }
@@ -156,6 +160,96 @@ function displayFileMessageWithLoader(file, isSent, messageText, tempId) {
     scrollToBottom();
 }
 
+function updateChatListOnSend(messageData) {
+    const sendingToType = $('meta[name="user-type"]').attr('content') === 'wholesaler' ? 'manufacturer' : 'wholesaler';
+    let chatTab = $(`.chat_tab[data-userid="${sending_to}"]`);
+    
+    $('.no_chats').remove();
+    
+    if (chatTab.length > 0) {
+        updateSentChatTab(chatTab, messageData);
+        chatTab.prependTo('.chat_list');
+    } else {
+        createNewChatTabOnSend(sending_to, sendingToType, messageData);
+    }
+}
+
+function updateSentChatTab(chatTab, messageData) {
+    let lastMessageText = '';
+    let messageIcon = '';
+    if (messageData.messageType === 'text') {
+        lastMessageText = messageData.message.length > 40 ?
+            messageData.message.substring(0, 40) + '...' :
+            messageData.message;
+    } else if (messageData.messageType === 'file') {
+        messageIcon = '<i class="fas fa-file-alt"></i>';
+        lastMessageText = 'File sent';
+    }
+    const lastMessageHtml = messageIcon ?
+        `${messageIcon} ${lastMessageText}` :
+        lastMessageText;
+    chatTab.find('.text-sm').html(lastMessageHtml);
+    chatTab.find('.text-xs.text-gray-500').text('Just now');
+
+    chatTab.find('.unread_badge').addClass('hidden').text('0');
+}
+
+function createNewChatTabOnSend(userId, sendingToType, messageData) {
+    $('.no_chats').remove();
+    
+    $.ajax({
+        url: '/get-chat-list-item',
+        type: 'POST',
+        data: {
+            'user_id': userId,
+            'sending_to_type': sendingToType,
+            'current_user_id': user_uid,
+            '_token': csrf_token
+        },
+        success: function (response) {
+            if (response.status === 'success') {
+                const user = response.user;
+                let lastMessageText = '';
+                let messageIcon = '';
+
+                if (messageData.messageType === 'text') {
+                    lastMessageText = messageData.message.length > 40 ?
+                        messageData.message.substring(0, 40) + '...' :
+                        messageData.message;
+                } else if (messageData.messageType === 'file') {
+                    messageIcon = '<i class="fas fa-file-alt"></i>';
+                    lastMessageText = 'File sent';
+                }
+
+                const chatTabHtml = `
+                    <div class="chat_tab inactive_chat_tab" data-userid="${user.id}" onclick="activateChat(this)">
+                        <img src="${user.profile_picture}" alt="${user.name}"
+                            class="w-12 h-12 rounded-full chat_user_img object-cover"
+                            onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(user.name)}&background=3b82f6&color=fff'">
+                        <div class="flex-1 min-w-0">
+                            <div class="flex justify-between items-baseline">
+                                <h3 class="font-semibold text-gray-900 truncate chat_user_name">
+                                    ${user.name}
+                                </h3>
+                                <span class="text-xs text-gray-500">Just now</span>
+                            </div>
+                            <p class="text-sm text-gray-600 truncate">
+                                ${messageIcon} ${lastMessageText}
+                            </p>
+                        </div>
+                        <span class="unread_badge hidden">0</span>
+                    </div>
+                `;
+
+                $('.chat_list').prepend(chatTabHtml);
+            }
+        },
+        error: function (xhr, status, error) {
+            console.error('Error fetching chat list item:', error);
+        }
+    });
+}
+
 function sendMessage(passedThis) {
     let message_box = ($(".message_box").val()).trim();
 
@@ -168,12 +262,15 @@ function sendMessage(passedThis) {
 
     if (message_box !== '' && message_box !== null && sending_to) {
         const tempMessageUid = 'temp_' + Date.now();
-
-        // Display message immediately with unseen status
         displayTextMessage(message_box, true, tempMessageUid, false);
         $(".message_box").val('');
         resetTextareaHeight();
         scrollToBottom();
+        updateChatListOnSend({
+            messageType: 'text',
+            message: message_box,
+            timestamp: new Date().toISOString()
+        });
 
         if (window.sendStopTypingIndicator) {
             window.sendStopTypingIndicator();
@@ -188,9 +285,7 @@ function sendMessage(passedThis) {
                 '_token': csrf_token
             },
             success: function (response) {
-                // Update temp message with actual message UID
                 $(`[data-message-uid="${tempMessageUid}"]`).attr('data-message-uid', response.message_uid);
-                console.log('Message saved to database');
             },
             error: function (xhr, status, error) {
                 console.error('Error sending message:', error);
@@ -218,23 +313,14 @@ function scrollToBottom() {
     }
 }
 
-$('.message_box').on('input', function () {
-    this.style.height = 'auto';
-    const newHeight = Math.min(this.scrollHeight, 120);
-    this.style.height = newHeight + 'px';
-});
-
-
-
 function displayTextMessage(message, isSent, messageUid = null, seenStatus = false) {
-    const now = new Date();
-    const timeString = now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+    const d = new Date();
+    const dateTimeString = `${d.getDate().toString().padStart(2, '0')}/${(d.getMonth() + 1).toString().padStart(2, '0')}/${d.getFullYear().toString().slice(-2)}, ${d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}`;
 
     const messageClass = isSent ? 'sent_message' : 'received_message';
     const alignClass = isSent ? 'items-end' : 'items-start';
     const bgClass = isSent ? 'bg-blue-500 text-white rounded-2xl rounded-tr-none' : 'bg-[#843ffe] text-white rounded-2xl rounded-tl-none';
 
-    // Seen/Unseen indicator for sent messages - MOVE INSIDE TIME SPAN
     const seenIndicator = isSent ? `
         <i class="fas fa-check-double ${seenStatus ? 'text-blue-400' : 'text-gray-400'} text-xs ml-1" title="${seenStatus ? 'Seen' : 'Sent'}"></i>
     ` : '';
@@ -246,7 +332,7 @@ function displayTextMessage(message, isSent, messageUid = null, seenStatus = fal
                     <p style="white-space: pre-wrap;" class="text-xs lg:text-sm">${escapeHtml(message)}</p>
                 </div>
                 <span class="text-xs text-gray-500 ${isSent ? 'mr-2' : 'ml-2'} hidden time flex items-center gap-1">
-                    ${timeString}
+                    ${dateTimeString}
                     ${seenIndicator}
                 </span>
             </div>
@@ -254,20 +340,16 @@ function displayTextMessage(message, isSent, messageUid = null, seenStatus = fal
 
     $("#messagesContainer").append(new_message);
     $(".empty_chat_area").remove();
-    
-    // Log for debugging
-    console.log(`Displayed ${isSent ? 'sent' : 'received'} message ${messageUid}, seen: ${seenStatus}`);
 }
 
 function displayFileMessage(fileData, isSent, messageText = '', messageUid = null, seenStatus = false) {
-    const now = new Date();
-    const timeString = now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+    const d = new Date();
+    const dateTimeString = `${d.getDate().toString().padStart(2, '0')}/${(d.getMonth() + 1).toString().padStart(2, '0')}/${d.getFullYear().toString().slice(-2)}, ${d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}`;
 
     const messageClass = isSent ? 'sent_message' : 'received_message';
     const alignClass = isSent ? 'items-end' : 'items-start';
     const bgClass = isSent ? 'bg-blue-500 text-white' : 'bg-[#843ffe] text-white';
 
-    // Seen/Unseen indicator for sent messages - MOVE INSIDE TIME SPAN
     const seenIndicator = isSent ? `
         <i class="fas fa-check-double ${seenStatus ? 'text-blue-400' : 'text-gray-400'} text-xs ml-1" title="${seenStatus ? 'Seen' : 'Sent'}"></i>
     ` : '';
@@ -319,88 +401,7 @@ function displayFileMessage(fileData, isSent, messageText = '', messageUid = nul
                     ${textContent}
                 </div>
                 <span class="text-xs text-gray-500 ${isSent ? 'mr-2' : 'ml-2'} hidden time flex items-center gap-1">
-                    ${timeString}
-                    ${seenIndicator}
-                </span>
-            </div>
-        </div>`;
-
-    $("#messagesContainer").append(new_message);
-    $(".empty_chat_area").remove();
-    
-    // Log for debugging
-    console.log(`Displayed ${isSent ? 'sent' : 'received'} file message ${messageUid}, seen: ${seenStatus}`);
-}
-
-
-
-
-function displayFileMessage(fileData, isSent, messageText = '', messageUid = null, seenStatus = false) {
-    const now = new Date();
-    const timeString = now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
-
-    const messageClass = isSent ? 'sent_message' : 'received_message';
-    const alignClass = isSent ? 'items-end' : 'items-start';
-    const bgClass = isSent ? 'bg-blue-500 text-white' : 'bg-[#843ffe] text-white';
-
-    // Seen/Unseen indicator
-    const seenIndicator = isSent ? `
-        <span class="seen-indicator ml-1" data-message-uid="${messageUid || ''}">
-            ${seenStatus ?
-            '<i class="fas fa-check-double text-blue-400 text-xs"></i>' :
-            '<i class="fas fa-check-double text-gray-400 text-xs"></i>'
-        }
-        </span>
-    ` : '';
-
-    let fileContent = '';
-    if (fileData.file_type.startsWith('image/')) {
-        const imageRoundClass = messageText
-            ? 'rounded-t-2xl'
-            : (isSent ? 'rounded-2xl rounded-tr-none' : 'rounded-2xl rounded-tl-none');
-
-        fileContent = `
-            <img src="${fileData.file_url}" alt="Shared image" 
-                 class="w-full h-auto ${imageRoundClass} cursor-pointer file-preview"
-                 onclick="openFileModal('${fileData.file_url}', 'image')">
-        `;
-    } else {
-        const fileRoundClass = messageText
-            ? 'rounded-t-2xl'
-            : (isSent ? 'rounded-2xl rounded-tr-none' : 'rounded-2xl rounded-tl-none');
-
-        const icon = getFileIcon(fileData.file_type);
-        fileContent = `
-            <div class="flex items-center gap-0 p-3 ${bgClass} ${fileRoundClass}">
-                <div class="flex-shrink-0">
-                    ${icon}
-                </div>
-                <div class="flex-1 min-w-0">
-                    <p class="text-sm font-medium truncate">${fileData.original_name}</p>
-                    <a href="${fileData.file_url}" target="_blank" 
-                       class="text-xs underline hover:no-underline inline-block mt-1">
-                        Open file
-                    </a>
-                </div>
-            </div>
-        `;
-    }
-
-    const textContent = messageText ? `
-        <div class="${bgClass} px-4 py-2 ${isSent ? 'rounded-b-2xl rounded-tr-none' : 'rounded-b-2xl rounded-tl-none'} max-w-xs break-words">
-            <p style="white-space: pre-wrap;" class="text-xs lg:text-sm">${escapeHtml(messageText)}</p>
-        </div>
-    ` : '';
-
-    const new_message = `
-        <div class="${messageClass}" data-message-uid="${messageUid || ''}">
-            <div class="flex flex-col gap-0 ${alignClass} cursor-pointer" onclick="toggleTime(this)">
-                <div class="file-message min-w-[50px] max-w-[200px] lg:min-w-[120px] lg:max-w-[300px]">
-                    ${fileContent}
-                    ${textContent}
-                </div>
-                <span class="text-xs text-gray-500 ${isSent ? 'mr-2' : 'ml-2'} hidden time flex items-center gap-1">
-                    ${timeString}
+                    ${dateTimeString}
                     ${seenIndicator}
                 </span>
             </div>
@@ -409,9 +410,6 @@ function displayFileMessage(fileData, isSent, messageText = '', messageUid = nul
     $("#messagesContainer").append(new_message);
     $(".empty_chat_area").remove();
 }
-
-
-
 
 function getFileIcon(fileType) {
     if (fileType.includes('pdf')) {
@@ -442,7 +440,7 @@ function openFileModal(url, type) {
     const modalContent = $('#modalContent');
 
     if (type === 'image') {
-        modalContent.html(`<img src="${url}" class="max-w-full h-auto" alt="Preview">`);
+        modalContent.html(`<img src="${url}" class="w-full h-auto" alt="Preview">`);
     }
 
     modal.removeClass('hidden');
@@ -457,33 +455,6 @@ function toggleTime(passedThis) {
     timeElement.toggleClass('hidden');
 }
 
-function insertEmoji(button) {
-    $('#emojiPicker').remove();
-    let emojiHtml = '<div id="emojiPicker" class="absolute bottom-full mb-2 right-0 bg-white border border-gray-300 rounded-lg shadow-lg p-2 grid grid-cols-10 gap-1 max-h-64 overflow-y-auto z-10" style="width: 320px;">';
-
-    emojis.forEach(emoji => {
-        emojiHtml += `<button class="emoji-btn text-2xl hover:bg-gray-100 rounded p-1 transition-colors" onclick="addEmojiToMessage('${emoji}')">${emoji}</button>`;
-    });
-    emojiHtml += '</div>';
-    $(button).parent().addClass('emoji-container').css('position', 'relative');
-    $(button).parent().append(emojiHtml);
-}
-
-function addEmojiToMessage(emoji) {
-    const messageBox = $('.message_box');
-    const currentText = messageBox.val();
-    const cursorPos = messageBox[0].selectionStart;
-
-    const newText = currentText.substring(0, cursorPos) + emoji + currentText.substring(cursorPos);
-    messageBox.val(newText);
-
-    const newCursorPos = cursorPos + emoji.length;
-    messageBox[0].setSelectionRange(newCursorPos, newCursorPos);
-    messageBox.focus();
-
-    $('#emojiPicker').remove();
-}
-
 function escapeHtml(text) {
     const map = {
         '&': '&amp;',
@@ -496,10 +467,17 @@ function escapeHtml(text) {
 }
 
 function showChatList() {
+    if (sending_to && window.notifyChatClosed) {
+        window.notifyChatClosed(sending_to);
+    }
+
     $(".chat_area").addClass('hidden');
     $(".chat_list").removeClass("hidden");
     $(".search_input_box").removeClass("hidden");
     $(".chat_header").removeClass("hidden");
+
+    sending_to = "";
+    $(".sending_to").val("");
 }
 
 var emptyChat = `<div class="empty_chat_area text-center py-8">
@@ -511,14 +489,18 @@ var emptyChat = `<div class="empty_chat_area text-center py-8">
                     <p class="text-sm">Start a conversation by sending a message</p>
                 </div>`;
 
-
-
 function activateChat(passedThis) {
+    if (previousChatUserId && window.notifyChatClosed) {
+        window.notifyChatClosed(previousChatUserId);
+    }
+
     $('.chat_tab').removeClass('active_chat_tab');
     $(passedThis).addClass('active_chat_tab');
+
     let activated_user_img = $(passedThis).find('.chat_user_img').attr('src');
     let activated_user_name = $(passedThis).find('.chat_user_name').html();
     sending_to = $(passedThis).attr("data-userid");
+
     $(".chat_area").removeClass('hidden');
     $(".chat_list").addClass("hidden");
     $(".search_input_box").addClass("hidden");
@@ -532,10 +514,12 @@ function activateChat(passedThis) {
 
     $(passedThis).find(".unread_badge").addClass('hidden').text('0');
 
-    // Notify server that chat is opened
     if (window.notifyChatOpened) {
         window.notifyChatOpened(sending_to);
     }
+
+    previousChatUserId = sending_to;
+
     if (window.requestOnlineStatus) {
         window.requestOnlineStatus(sending_to);
     }
@@ -558,7 +542,7 @@ function activateChat(passedThis) {
                 response.messages.forEach(message => {
                     const isSent = message.sent_by == user_uid;
                     const seenStatus = message.seen == 1;
-                    
+
                     if (message.message_type == 'text') {
                         displayTextMessage(message.main_message, isSent, message.message_uid, seenStatus);
                     } else if (message.message_type == 'file') {
@@ -571,18 +555,27 @@ function activateChat(passedThis) {
             setTimeout(() => {
                 scrollToBottom();
                 $("#messagesContainer").removeClass('opacity-0');
-                
-                // Mark any unseen messages as seen
-                const unseenMessages = response.messages.filter(msg => 
+
+                const allUnseenMessages = response.messages.filter(msg =>
                     msg.sent_by === sending_to && msg.seen === 0
                 );
-                
-                if (unseenMessages.length > 0) {
-                    const unseenUids = unseenMessages.map(msg => msg.message_uid);
-                    console.log('Marking unseen messages as seen:', unseenUids);
-                    markMessagesAsSeenInBackend(unseenUids, sending_to);
+
+                if (allUnseenMessages.length > 0) {
+                    const allUnseenUids = allUnseenMessages.map(msg => msg.message_uid);
+                    markMessagesAsSeenInBackend(allUnseenUids, sending_to);
+
+                    allUnseenUids.forEach(uid => {
+                        const messageElement = $(`[data-message-uid="${uid}"]`);
+                        if (messageElement.length > 0) {
+                            const seenIndicator = messageElement.find('.time i.fa-check-double');
+                            if (seenIndicator.length > 0) {
+                                seenIndicator.removeClass('text-gray-400').addClass('text-blue-400');
+                                seenIndicator.attr('title', 'Seen');
+                            }
+                        }
+                    });
                 }
-                
+
                 setTimeout(() => {
                     scrollToBottom();
                 }, 200);
@@ -594,9 +587,22 @@ function activateChat(passedThis) {
     });
 }
 
+function markMessagesAsSeenInBackend(messageUids, senderId) {
+    if (!messageUids || messageUids.length === 0) return;
 
-
-
-
-
-
+    $.ajax({
+        url: '/mark-messages-seen',
+        type: 'POST',
+        data: {
+            'message_uids': messageUids,
+            'sender_id': senderId,
+            '_token': csrf_token
+        },
+        success: function (response) {
+            console.log('Messages marked as seen in database');
+        },
+        error: function (xhr, status, error) {
+            console.error('Error marking messages as seen:', error);
+        }
+    });
+}

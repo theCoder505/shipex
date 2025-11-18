@@ -1,0 +1,72 @@
+.file-preview {
+    cursor: pointer;
+    transition: transform 0.2s;
+}
+
+.file-preview:hover {
+    transform: scale(1.05);
+}
+
+.file-icon {
+    width: 48px;
+    height: 48px;
+}
+
+.back_arrow {
+    display: none;
+}
+
+
+.chat_tab.no-chat-history {
+    opacity: 0.7;
+}
+
+.chat_tab.no-chat-history .text-sm {
+    font-style: italic;
+    color: #9ca3af;
+}
+
+.chat_tab:hover {
+    opacity: 1;
+    background-color: #f9fafb;
+}
+
+.goog-te-gadget-simple{
+    top: 0;
+}
+
+@media screen and (max-width: 800px) {
+    .back_arrow {
+        display: block !important;
+    }
+
+    .message-input-container {
+        padding: 8px 12px;
+    }
+
+    .attachment-btn,
+    .send-btn {
+        flex-shrink: 0;
+    }
+
+    .message-input-wrapper {
+        min-width: 0;
+    }
+
+    #messagesContainer {
+        height: calc(100vh - 150px);
+    }
+
+    .seen-indicator {
+        display: inline-flex;
+        align-items: center;
+    }
+
+    .sent_message .time-container {
+        justify-content: flex-end;
+    }
+
+    .received_message .time-container {
+        justify-content: flex-start;
+    }
+}

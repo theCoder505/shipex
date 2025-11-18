@@ -23,7 +23,9 @@ function initWebSocket() {
         console.log('💬 Chat WebSocket connected');
         clearInterval(reconnectInterval);
 
+        // Notify server about currently open chat if any
         if (sending_to) {
+            notifyChatOpened(sending_to);
             requestOnlineStatus(sending_to);
         }
 
@@ -60,19 +62,22 @@ function setupWebSocketHandlers() {
 
     // Override the global message handler for chat-specific messages
     const originalOnMessage = ws.onmessage;
-    ws.onmessage = function(event) {
+    ws.onmessage = function (event) {
         try {
             const data = JSON.parse(event.data);
-            
+
             // Handle chat-specific messages
-            if (data.type === 'user_typing' || 
-                data.type === 'messages_seen' || 
+            if (data.type === 'user_typing' ||
+                data.type === 'messages_seen' ||
                 data.type === 'online_status' ||
                 data.type === 'user_status_changed' ||
-                data.type === 'update_chat_list') {
+                data.type === 'update_chat_list' ||
+                data.type === 'message_seen' ||
+                data.type === 'all_messages_seen' ||
+                data.type === 'user_chat_opened') {
                 handleWebSocketMessage(data);
             }
-            
+
             // Also call original handler if it exists
             if (originalOnMessage) {
                 originalOnMessage.call(this, event);
@@ -116,6 +121,18 @@ function handleWebSocketMessage(data) {
             handleChatListUpdate(data);
             break;
 
+        case 'message_seen':
+            handleSingleMessageSeen(data);
+            break;
+
+        case 'all_messages_seen':
+            handleAllMessagesSeen(data);
+            break;
+
+        case 'user_chat_opened':
+            handleUserChatOpened(data);
+            break;
+
         case 'pong':
             // Heartbeat response
             break;
@@ -125,63 +142,207 @@ function handleWebSocketMessage(data) {
     }
 }
 
-
 // Handle new incoming message (sent from server after DB save)
 function handleNewMessage(data) {
-    // console.log('New message received:', data);
-    
-    if (data.senderId === sending_to) {
-        // Message is from the currently active chat
+    console.log('New message received:', data);
+
+    // Check if the message is from the currently active chat
+    const isFromActiveChat = data.senderId === sending_to;
+    console.log('Is from active chat:', isFromActiveChat, 'senderId:', data.senderId, 'sending_to:', sending_to);
+
+    // Remove "No chat history yet" message if it exists
+    $('.no_chats').remove();
+
+    if (isFromActiveChat) {
+        // Message is from the currently active chat - display it
+        console.log('Message from active chat');
         const isSeen = data.seen || false;
-        
+
         if (data.messageType === 'text') {
             displayTextMessage(data.message, false, data.messageUid, isSeen);
         } else if (data.messageType === 'file') {
             displayFileMessage(data.fileData, false, data.messageText, data.messageUid, isSeen);
         }
-        
+
         scrollToBottom();
-        
-        // If message is not already marked as seen and chat is open, mark it as seen
-        if (!isSeen && data.chatIsOpen) {
-            // console.log('Auto-marking incoming message as seen:', data.messageUid);
+
+        // CRITICAL: Since we have the chat open with this sender, mark as seen immediately
+        if (!isSeen) {
+            console.log('🔵 Marking incoming message as seen (chat is open):', data.messageUid);
             markMessagesAsSeenInBackend([data.messageUid], data.senderId);
+            
+            // Update UI immediately
+            const messageElement = $(`[data-message-uid="${data.messageUid}"]`);
+            if (messageElement.length > 0) {
+                const seenIndicator = messageElement.find('.time i.fa-check-double');
+                if (seenIndicator.length > 0) {
+                    seenIndicator.removeClass('text-gray-400').addClass('text-blue-400');
+                    seenIndicator.attr('title', 'Seen');
+                }
+            }
         }
+
+        // Update chat list WITHOUT incrementing unread badge for active chat
+        updateChatListItem(data.senderId, data, false);
     } else {
-        // Message is from another chat - update unread badge
-        updateUnreadBadge(data.senderId, 1);
+        // Message is from another chat - update unread badge or create new chat tab
+        console.log('Message from different chat, updating unread badge');
+        
+        // Check if chat tab exists for this user
+        const chatTab = $(`.chat_tab[data-userid="${data.senderId}"]`);
+        
+        if (chatTab.length > 0) {
+            // Update existing chat tab WITH unread badge increment
+            updateChatListItem(data.senderId, data, true);
+        } else {
+            // Create new chat tab for this user with unread badge
+            createNewChatTabFromMessage(data.senderId, data);
+        }
+
+        // Play notification sound for messages from other chats
+        playNotificationSound();
     }
-    
-    updateChatListItem(data.senderId, data);
-    playNotificationSound();
 }
 
-// Handle messages seen - update UI indicators
-function handleMessagesSeen(data) {
-    // console.log('Messages seen notification received:', data);
+// Handle single message seen notification
+function handleSingleMessageSeen(data) {
+    console.log('Single message seen:', data);
+    const { messageUid, seenBy } = data;
     
-    // Update seen indicators for these messages
-    if (data.messageUids && Array.isArray(data.messageUids)) {
-        data.messageUids.forEach(uid => {
-            const messageElement = $(`[data-message-uid="${uid}"]`);
-            if (messageElement.length > 0) {
-                const seenIndicator = messageElement.find('.seen-indicator');
-                if (seenIndicator.length > 0) {
-                    // Update to blue checkmark for seen
-                    seenIndicator.html('<i class="fas fa-check-double text-blue-400 text-xs" title="Seen"></i>');
-                    // console.log(`Updated seen indicator for message: ${uid}`);
-                } else {
-                    // console.log(`No seen indicator found for message: ${uid}`);
+    // Update the UI for this specific message
+    const messageElement = $(`[data-message-uid="${messageUid}"]`);
+    if (messageElement.length > 0) {
+        const seenIndicator = messageElement.find('.time i.fa-check-double');
+        if (seenIndicator.length > 0) {
+            seenIndicator.removeClass('text-gray-400').addClass('text-blue-400');
+            seenIndicator.attr('title', 'Seen');
+        }
+    }
+}
+
+// Handle all messages seen notification
+function handleAllMessagesSeen(data) {
+    console.log('All messages seen by:', data.seenBy);
+    
+    // Update all sent messages to show as seen
+    $('.sent_message').each(function() {
+        const checkIcon = $(this).find('.time i.fa-check-double');
+        checkIcon.addClass("text-blue-400").removeClass("text-gray-400");
+        checkIcon.attr('title', 'Seen');
+    });
+}
+
+// Handle user chat opened notification
+function handleUserChatOpened(data) {
+    console.log('User opened chat with us:', data.userId);
+    // You can use this to show that the other user is viewing the chat
+    // Optional: Show a "User is viewing the chat" indicator
+}
+
+// Create new chat tab when message arrives from new user
+function createNewChatTabFromMessage(userId, messageData) {
+    const sendingToType = $('meta[name="user-type"]').attr('content') === 'wholesaler' ? 'manufacturer' : 'wholesaler';
+    
+    // Check if this is from the currently active chat
+    const isFromActiveChat = userId === sending_to;
+    
+    console.log('createNewChatTabFromMessage - userId:', userId, 'sending_to:', sending_to, 'isFromActiveChat:', isFromActiveChat);
+
+    // Remove "No chat history yet" message if it exists
+    $('.no_chats').remove();
+
+    $.ajax({
+        url: '/get-chat-list-item',
+        type: 'POST',
+        data: {
+            'user_id': userId,
+            'sending_to_type': sendingToType,
+            'current_user_id': user_uid,
+            '_token': csrf_token
+        },
+        success: function (response) {
+            if (response.status === 'success') {
+                const user = response.user;
+                
+                const isSent = messageData.senderId === user_uid;
+                let lastMessageText = '';
+                let messageIcon = '';
+
+                if (messageData.messageType === 'text') {
+                    lastMessageText = messageData.message.length > 40 ?
+                        messageData.message.substring(0, 40) + '...' :
+                        messageData.message;
+                } else if (messageData.messageType === 'file') {
+                    messageIcon = '<i class="fas fa-file-alt"></i>';
+                    lastMessageText = isSent ? 'File sent' : 'File received';
                 }
-            } else {
-                // console.log(`Message element not found for UID: ${uid}`);
+
+                // Only show unread badge if NOT from active chat AND message is from other user
+                const unreadCount = (!isFromActiveChat && !isSent) ? 1 : 0;
+
+                console.log('Creating new chat tab from message with unreadCount:', unreadCount);
+
+                const chatTabHtml = `
+                    <div class="chat_tab inactive_chat_tab" data-userid="${user.id}" onclick="activateChat(this)">
+                        <img src="${user.profile_picture}" alt="${user.name}"
+                            class="w-12 h-12 rounded-full chat_user_img object-cover"
+                            onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(user.name)}&background=3b82f6&color=fff'">
+                        <div class="flex-1 min-w-0">
+                            <div class="flex justify-between items-baseline">
+                                <h3 class="font-semibold text-gray-900 truncate chat_user_name">
+                                    ${user.name}
+                                </h3>
+                                <span class="text-xs text-gray-500">Just now</span>
+                            </div>
+                            <p class="text-sm text-gray-600 truncate">
+                                ${messageIcon} ${lastMessageText}
+                            </p>
+                        </div>
+                        <span class="unread_badge ${unreadCount > 0 ? '' : 'hidden'}">${unreadCount}</span>
+                    </div>
+                `;
+
+                $('.chat_list').prepend(chatTabHtml);
+                
+                // If this is the first chat, remove the "No chat history yet" message
+                if ($('.chat_list .chat_tab').length === 1) {
+                    $('.chat_list .p-4.text-center').remove();
+                }
             }
+        },
+        error: function (xhr, status, error) {
+            console.error('Error fetching chat list item:', error);
+        }
+    });
+}
+
+// Handle messages seen - update ALL messages from this sender
+function handleMessagesSeen(data) {
+    console.log('Messages seen notification received:', data);
+    if (data.senderId === sending_to) {
+        // Update all seen indicators to blue
+        $('.sent_message').each(function() {
+            const checkIcon = $(this).find('.time i.fa-check-double');
+            checkIcon.addClass("text-blue-400").removeClass("text-gray-400");
+            checkIcon.attr('title', 'Seen');
         });
     }
 }
 
 // Mark messages as seen in backend
 function markMessagesAsSeenInBackend(messageUids, senderId) {
+    console.log('🔵 Marking messages as seen in backend:', messageUids);
+    
+    // Notify WebSocket server
+    if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({
+            type: 'mark_messages_seen',
+            messageUids: messageUids,
+            senderId: senderId
+        }));
+    }
+    
+    // Also call Laravel endpoint directly for redundancy
     $.ajax({
         url: '/mark-messages-seen',
         type: 'POST',
@@ -190,18 +351,19 @@ function markMessagesAsSeenInBackend(messageUids, senderId) {
             'sender_id': senderId,
             '_token': csrf_token
         },
-        success: function(response) {
-            // console.log('Messages marked as seen in database');
+        success: function (response) {
+            console.log('✅ Messages marked as seen in database');
         },
-        error: function(xhr, status, error) {
-            console.error('Error marking messages as seen:', error);
+        error: function (xhr, status, error) {
+            console.error('❌ Error marking messages as seen:', error);
         }
     });
 }
 
-// Notify chat opened
-window.notifyChatOpened = function(withUserId) {
+// Notify chat opened - CRITICAL: This tells server which chat we have open
+window.notifyChatOpened = function (withUserId) {
     if (ws && ws.readyState === WebSocket.OPEN) {
+        console.log('🔓 Notifying server: Chat opened with', withUserId);
         ws.send(JSON.stringify({
             type: 'chat_opened',
             withUserId: withUserId
@@ -209,9 +371,10 @@ window.notifyChatOpened = function(withUserId) {
     }
 }
 
-// Notify chat closed
-window.notifyChatClosed = function(withUserId) {
+// Notify chat closed - CRITICAL: This tells server we closed the chat
+window.notifyChatClosed = function (withUserId) {
     if (ws && ws.readyState === WebSocket.OPEN) {
+        console.log('🔒 Notifying server: Chat closed with', withUserId);
         ws.send(JSON.stringify({
             type: 'chat_closed',
             withUserId: withUserId
@@ -219,79 +382,15 @@ window.notifyChatClosed = function(withUserId) {
     }
 }
 
-
-// Chat-specific WebSocket handlers
-function handleChatWebSocketMessage(data) {
-    console.log('Chat WebSocket message:', data.type);
-
-    switch (data.type) {
-        case 'user_typing':
-            handleUserTyping(data);
-            break;
-
-        case 'messages_seen':
-            handleMessagesSeen(data);
-            break;
-
-        case 'online_status':
-            handleOnlineStatus(data);
-            break;
-
-        case 'user_status_changed':
-            handleUserStatusChanged(data);
-            break;
-
-        case 'update_chat_list':
-            handleChatListUpdate(data);
-            break;
-
-        // new_message is now handled globally in app.blade.php
-    }
-}
-
-// Handle messages seen - update UI indicators
-function handleMessagesSeen(data) {
-    // console.log('Messages seen notification received:', data);
-    if (data.messageUids && Array.isArray(data.messageUids)) {
-        data.messageUids.forEach(uid => {
-            const messageElement = $(`[data-message-uid="${uid}"]`);
-            if (messageElement.length > 0) {
-                const seenIndicator = messageElement.find('.time-container i.fa-check-double');
-                if (seenIndicator.length > 0) {
-                    seenIndicator.removeClass('text-gray-400').addClass('text-blue-400');
-                    seenIndicator.attr('title', 'Seen');
-                    // console.log(`Updated seen indicator for message: ${uid}`);
-                } else {
-                    // console.log(`No seen indicator found for message: ${uid}`);
-                }
-            } else {
-                // console.log(`Message element not found for UID: ${uid}`);
-            }
-        });
-    }
-}
-// Update or add chat list item
-function updateChatListItem(userId, messageData) {
-    const sendingToType = $('meta[name="user-type"]').attr('content') === 'wholesaler' ? 'manufacturer' : 'wholesaler';
-
-    // Check if chat tab already exists
-    let chatTab = $(`.chat_tab[data-userid="${userId}"]`);
-
-    if (chatTab.length > 0) {
-        // Update existing chat tab
-        updateExistingChatTab(chatTab, messageData);
-
-        // Move to top
-        chatTab.prependTo('.chat_list');
-    } else {
-        // Create new chat tab
-        createNewChatTab(userId, sendingToType, messageData);
-    }
-}
-
-// Update existing chat tab
-function updateExistingChatTab(chatTab, messageData) {
+// Update existing chat tab with new message
+function updateExistingChatTab(chatTab, messageData, shouldIncrementUnread = true) {
     const isSent = messageData.senderId === user_uid;
+    const isFromActiveChat = chatTab.attr('data-userid') === sending_to;
+
+    console.log('updateExistingChatTab - shouldIncrementUnread:', shouldIncrementUnread, 'isFromActiveChat:', isFromActiveChat, 'isSent:', isSent);
+
+    // Remove "No chat history yet" message if it exists
+    $('.no_chats').remove();
 
     // Update last message
     let lastMessageText = '';
@@ -311,20 +410,57 @@ function updateExistingChatTab(chatTab, messageData) {
         lastMessageText;
 
     chatTab.find('.text-sm').html(lastMessageHtml);
-
-    // Update time
     chatTab.find('.text-xs.text-gray-500').text('Just now');
 
-    // If message is from other user (not sent by current user), increment unread
-    if (!isSent && messageData.senderId !== user_uid) {
+    // CRITICAL: Only increment unread if NOT the active chat and NOT sent by current user
+    if (shouldIncrementUnread && !isSent && !isFromActiveChat) {
         const badge = chatTab.find('.unread_badge');
         const currentCount = parseInt(badge.text()) || 0;
-        badge.removeClass('hidden').text(currentCount + 1);
+        const newCount = currentCount + 1;
+        
+        console.log('Incrementing unread badge:', currentCount, '->', newCount);
+        badge.removeClass('hidden').text(newCount);
+    } else {
+        console.log('Skipping unread badge increment - Active chat or sent message');
+    }
+
+    // Move to top ONLY if new message (not when just opening chat)
+    chatTab.prependTo('.chat_list');
+}
+
+// Update or add chat list item
+function updateChatListItem(userId, messageData, shouldUpdateUnread = true) {
+    const sendingToType = $('meta[name="user-type"]').attr('content') === 'wholesaler' ? 'manufacturer' : 'wholesaler';
+
+    // Check if this is from the currently active chat
+    const isFromActiveChat = userId === sending_to;
+    console.log('updateChatListItem - userId:', userId, 'sending_to:', sending_to, 'isFromActiveChat:', isFromActiveChat, 'shouldUpdateUnread:', shouldUpdateUnread);
+
+    // Check if chat tab already exists
+    let chatTab = $(`.chat_tab[data-userid="${userId}"]`);
+
+    if (chatTab.length > 0) {
+        // CRITICAL: Don't increment unread if it's the active chat
+        const shouldIncrementUnread = shouldUpdateUnread && !isFromActiveChat;
+        updateExistingChatTab(chatTab, messageData, shouldIncrementUnread);
+    } else {
+        // Create new chat tab - only add unread badge if not active chat
+        const shouldShowUnread = shouldUpdateUnread && !isFromActiveChat;
+        createNewChatTab(userId, sendingToType, messageData, shouldShowUnread);
     }
 }
 
+
+
 // Create new chat tab
-function createNewChatTab(userId, sendingToType, messageData) {
+function createNewChatTab(userId, sendingToType, messageData, shouldShowUnread = true) {
+    const isFromActiveChat = userId === sending_to;
+    
+    console.log('createNewChatTab - userId:', userId, 'sending_to:', sending_to, 'isFromActiveChat:', isFromActiveChat, 'shouldShowUnread:', shouldShowUnread);
+
+    // Remove "No chat history yet" message if it exists
+    $('.no_chats').remove();
+
     $.ajax({
         url: '/get-chat-list-item',
         type: 'POST',
@@ -337,6 +473,24 @@ function createNewChatTab(userId, sendingToType, messageData) {
         success: function (response) {
             if (response.status === 'success') {
                 const user = response.user;
+                
+                const isSent = messageData.senderId === user_uid;
+                let lastMessageText = '';
+                let messageIcon = '';
+
+                if (messageData.messageType === 'text') {
+                    lastMessageText = messageData.message.length > 40 ?
+                        messageData.message.substring(0, 40) + '...' :
+                        messageData.message;
+                } else if (messageData.messageType === 'file') {
+                    messageIcon = '<i class="fas fa-file-alt"></i>';
+                    lastMessageText = isSent ? 'File sent' : 'File received';
+                }
+
+                // Only show unread badge if specified AND message is from other user AND not from active chat
+                const unreadCount = (shouldShowUnread && !isSent && !isFromActiveChat) ? 1 : 0;
+
+                console.log('Creating new chat tab with unreadCount:', unreadCount);
 
                 const chatTabHtml = `
                     <div class="chat_tab inactive_chat_tab" data-userid="${user.id}" onclick="activateChat(this)">
@@ -351,14 +505,18 @@ function createNewChatTab(userId, sendingToType, messageData) {
                                 <span class="text-xs text-gray-500">Just now</span>
                             </div>
                             <p class="text-sm text-gray-600 truncate">
-                                ${user.message_icon} ${user.last_message}
+                                ${messageIcon} ${lastMessageText}
                             </p>
                         </div>
-                        <span class="unread_badge ${user.unseen_count > 0 ? '' : 'hidden'}">${user.unseen_count}</span>
+                        <span class="unread_badge ${unreadCount > 0 ? '' : 'hidden'}">${unreadCount}</span>
                     </div>
                 `;
 
                 $('.chat_list').prepend(chatTabHtml);
+                
+                if ($('.chat_list .chat_tab').length === 1) {
+                    $('.chat_list .p-4.text-center').remove();
+                }
             }
         },
         error: function (xhr, status, error) {
@@ -366,6 +524,9 @@ function createNewChatTab(userId, sendingToType, messageData) {
         }
     });
 }
+
+
+
 
 // Handle typing indicator
 function handleUserTyping(data) {
@@ -377,8 +538,6 @@ function handleUserTyping(data) {
         }
     }
 }
-
-
 
 // Handle online status response
 function handleOnlineStatus(data) {
@@ -399,7 +558,23 @@ function handleUserStatusChanged(data) {
 // Handle chat list update
 function handleChatListUpdate(data) {
     refreshUnreadCount(data.fromUserId);
-    moveToTopOfChatList(data.fromUserId);
+    
+    // Move to top ONLY if it's not the currently active chat
+    if (data.fromUserId !== sending_to) {
+        moveToTopOfChatList(data.fromUserId);
+    }
+}
+
+// Send message with chat update notification
+window.sendMessageWithChatUpdate = function (messageData) {
+    if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({
+            type: 'chat_message_sent',
+            receiverId: sending_to,
+            messageData: messageData,
+            timestamp: new Date().toISOString()
+        }));
+    }
 }
 
 // Send typing indicator
@@ -422,17 +597,6 @@ window.sendStopTypingIndicator = function () {
     }
 }
 
-// Send message seen notification
-function sendMessageSeen(senderId, messageUids) {
-    if (ws && ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({
-            type: 'message_seen',
-            receiverId: senderId,
-            messageUids: messageUids
-        }));
-    }
-}
-
 // Request online status
 window.requestOnlineStatus = function (userId) {
     if (ws && ws.readyState === WebSocket.OPEN) {
@@ -443,12 +607,29 @@ window.requestOnlineStatus = function (userId) {
     }
 }
 
-// Notify chat opened
-window.notifyChatOpened = function (withUserId) {
+// Send new text message via WebSocket
+window.sendTextMessageViaWebSocket = function (receiverId, message, messageUid, timestamp) {
     if (ws && ws.readyState === WebSocket.OPEN) {
         ws.send(JSON.stringify({
-            type: 'chat_opened',
-            withUserId: withUserId
+            type: 'new_text_message',
+            receiverId: receiverId,
+            message: message,
+            messageUid: messageUid,
+            timestamp: timestamp
+        }));
+    }
+}
+
+// Send new file message via WebSocket
+window.sendFileMessageViaWebSocket = function (receiverId, fileData, messageText, messageUid, timestamp) {
+    if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({
+            type: 'new_file_message',
+            receiverId: receiverId,
+            fileData: fileData,
+            messageText: messageText,
+            messageUid: messageUid,
+            timestamp: timestamp
         }));
     }
 }
@@ -498,19 +679,13 @@ function updateChatListOnlineStatus(userId, isOnline) {
     }
 }
 
-function updateUnreadBadge(userId, increment) {
-    const badge = $(`.chat_tab[data-userid="${userId}"] .unread_badge`);
-    if (badge.length > 0) {
-        const currentCount = parseInt(badge.text()) || 0;
-        const newCount = currentCount + increment;
-
-        if (newCount > 0) {
-            badge.removeClass('hidden').text(newCount);
-        }
-    }
-}
-
 function refreshUnreadCount(userId) {
+    // Skip if this is the currently active chat
+    if (userId === sending_to) {
+        console.log('Skipping unread count refresh for active chat');
+        return;
+    }
+    
     $.ajax({
         url: '/get-unread-count',
         type: 'POST',
@@ -545,8 +720,6 @@ function showConnectionStatus(status) {
         color = 'red';
         text = 'Disconnected';
     }
-
-    // console.log(`Connection status: ${text}`);
 }
 
 function playNotificationSound() {
@@ -588,9 +761,19 @@ setInterval(function () {
             }
         });
     }
-}, 60000); // Update every minute
+}, 60000);
 
 // Initialize WebSocket on page load
 $(document).ready(function () {
     initWebSocket();
 });
+
+// Export functions for global access
+window.markMessagesAsSeenInBackend = markMessagesAsSeenInBackend;
+window.notifyChatOpened = notifyChatOpened;
+window.notifyChatClosed = notifyChatClosed;
+window.sendTypingIndicator = sendTypingIndicator;
+window.sendStopTypingIndicator = sendStopTypingIndicator;
+window.requestOnlineStatus = requestOnlineStatus;
+window.sendTextMessageViaWebSocket = sendTextMessageViaWebSocket;
+window.sendFileMessageViaWebSocket = sendFileMessageViaWebSocket;

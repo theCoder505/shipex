@@ -4,6 +4,7 @@ body {
     font-family: "Noto Sans KR", sans-serif;
     font-optical-sizing: auto;
     font-style: normal;
+    top: 0px !important;
 }
 
 .bg_primary {
