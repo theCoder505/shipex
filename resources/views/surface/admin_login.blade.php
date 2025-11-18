@@ -102,7 +102,7 @@
 @endsection
 
 @section('content')
-    <section class="main mx-auto px-4 lg:px-8 max-w-[1600px] bg-[#011e50]">
+    <section class="main mx-auto px-4 lg:px-8 bg-[#011e50]">
         <section class="min-h-screen flex items-center justify-center px-4">
             <div class="px-2 lg:px-8 w-full my-10">
                 <div class="flex justify-center items-center md:px-9" id="createForm">

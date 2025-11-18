@@ -159,6 +159,10 @@ wss.on('connection', (ws, req) => {
                     handleNewFileMessage(userId, data);
                     break;
 
+                case 'get_total_unread_count':
+                    handleGetTotalUnreadCount(userId);
+                    break;
+
                 default:
                     console.warn('Unknown message type:', data.type);
             }
@@ -223,9 +227,31 @@ app.post('/api/notify', (req, res) => {
     }
 });
 
+// Handle get total unread count request
+function handleGetTotalUnreadCount(userId) {
+    console.log(`📊 Get total unread count request from: ${userId}`);
+
+    // Notify client to fetch from Laravel backend
+    // The actual count is stored in database, so we tell client to fetch via AJAX
+    if (clients.has(userId)) {
+        const client = clients.get(userId);
+        if (client.ws.readyState === 1) {
+            try {
+                client.ws.send(JSON.stringify({
+                    type: 'fetch_unread_count_from_server',
+                    timestamp: new Date().toISOString()
+                }));
+                console.log(`✅ Requested ${userId} to fetch unread count from server`);
+            } catch (error) {
+                console.error(`Failed to request unread count for ${userId}:`, error);
+            }
+        }
+    }
+}
+
 // Handle new text message from Laravel
 function handleNewTextMessageFromLaravel(data) {
-    const { senderId, receiverId, message, messageUid, timestamp } = data;
+    const { senderId, receiverId, message, messageUid, timestamp, seen, bothUsersChatting } = data;
 
     if (!receiverId || !message) {
         console.warn('Invalid message data from Laravel');
@@ -250,7 +276,7 @@ function handleNewTextMessageFromLaravel(data) {
                 message: message,
                 messageUid: messageUid,
                 timestamp: timestamp,
-                seen: chatIsOpen,
+                seen: seen || chatIsOpen,
                 chatIsOpen: chatIsOpen
             };
 
@@ -269,7 +295,7 @@ function handleNewTextMessageFromLaravel(data) {
             });
 
             // If chat is open, automatically mark as seen
-            if (chatIsOpen) {
+            if (chatIsOpen && !seen) {
                 console.log(`👁️ Auto-marking text message ${messageUid} as seen (chat is open)`);
                 // Notify sender that message was seen
                 if (clients.has(senderId)) {
@@ -318,7 +344,7 @@ function handleNewTextMessageFromLaravel(data) {
 
 // Handle new file message from Laravel
 function handleNewFileMessageFromLaravel(data) {
-    const { senderId, receiverId, fileData, messageText, messageUid, timestamp } = data;
+    const { senderId, receiverId, fileData, messageText, messageUid, timestamp, seen, bothUsersChatting } = data;
 
     if (!receiverId || !fileData) {
         console.warn('Invalid file message data from Laravel');
@@ -343,7 +369,7 @@ function handleNewFileMessageFromLaravel(data) {
                 messageText: messageText || '',
                 messageUid: messageUid,
                 timestamp: timestamp,
-                seen: chatIsOpen,
+                seen: seen || chatIsOpen,
                 chatIsOpen: chatIsOpen
             };
 
@@ -362,7 +388,7 @@ function handleNewFileMessageFromLaravel(data) {
             });
 
             // If chat is open, automatically mark as seen
-            if (chatIsOpen) {
+            if (chatIsOpen && !seen) {
                 console.log(`👁️ Auto-marking file message ${messageUid} as seen (chat is open)`);
                 // Notify sender that message was seen
                 if (clients.has(senderId)) {
@@ -502,11 +528,11 @@ function handleChatClosed(userId, data) {
 
 function handleChatMessageSent(senderId, data) {
     const { receiverId, messageData } = data;
-    
+
     if (!receiverId) return;
 
     console.log(`💬 User ${senderId} sent message to ${receiverId}`);
-    
+
     // Update sender's own chat list across all their devices
     if (clients.has(senderId)) {
         const sender = clients.get(senderId);
@@ -744,7 +770,7 @@ function handleMarkMessagesSeen(userId, data) {
 // Mark all unseen messages as seen when chat is opened
 function markAllUnseenMessagesAsSeen(userId, withUserId) {
     console.log(`🔵 Marking all unseen messages from ${withUserId} as seen for ${userId}`);
-    
+
     // Notify the other user that all their messages were seen
     if (clients.has(withUserId)) {
         const sender = clients.get(withUserId);
@@ -971,12 +997,44 @@ app.get('/status', (req, res) => {
     });
 });
 
+// Debug endpoint to check active chats
+app.get('/debug/active-chats', (req, res) => {
+    const activeChatsData = {};
+    activeChats.forEach((chats, userId) => {
+        activeChatsData[userId] = Array.from(chats);
+    });
+
+    res.json({
+        activeChats: activeChatsData,
+        connectedClients: Array.from(clients.keys()),
+        timestamp: new Date().toISOString()
+    });
+});
+
+// Debug endpoint to check specific user status
+app.get('/debug/user/:userId', (req, res) => {
+    const userId = req.params.userId;
+    const isConnected = clients.has(userId);
+    const lastActiveTime = lastActive.get(userId);
+    const userActiveChats = activeChats.get(userId);
+
+    res.json({
+        userId: userId,
+        isConnected: isConnected,
+        isOnline: isUserOnline(userId),
+        lastActive: lastActiveTime ? lastActiveTime.toISOString() : null,
+        activeChats: userActiveChats ? Array.from(userActiveChats) : [],
+        timestamp: new Date().toISOString()
+    });
+});
+
 // Start server
 server.listen(port, '0.0.0.0', () => {
     console.log(`WebSocket server running on ws://localhost:${port}`);
     console.log(`HTTP API available at http://localhost:${port}`);
     console.log(`Health check available at http://localhost:${port}/health`);
     console.log(`Server status at http://localhost:${port}/status`);
+    console.log(`Debug active chats at http://localhost:${port}/debug/active-chats`);
 });
 
 // Handle uncaught exceptions
@@ -991,6 +1049,25 @@ process.on('unhandledRejection', (reason, promise) => {
 // Graceful shutdown
 process.on('SIGTERM', () => {
     console.log('Shutting down WebSocket server...');
+
+    clients.forEach((client) => {
+        try {
+            client.ws.close(1001, 'Server shutting down');
+        } catch (error) {
+            console.error('Error closing client connection:', error);
+        }
+    });
+
+    wss.close(() => {
+        server.close(() => {
+            console.log('✅ WebSocket server closed gracefully');
+            process.exit(0);
+        });
+    });
+});
+
+process.on('SIGINT', () => {
+    console.log('Received SIGINT, shutting down gracefully...');
 
     clients.forEach((client) => {
         try {

@@ -27,8 +27,7 @@
                 {{-- Chat Icon with Notification Badge --}}
                 <a href="/wholesaler/chats" class="w-[40px] h-[40px] flex items-center justify-center p-2 relative">
                     <img src="/assets/images/chat.png" alt="Messages" class="w-full">
-                    <span
-                        class="notification-badge absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center hidden">0</span>
+                    <span class="notification-badge absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center hidden">0</span>
                 </a>
 
                 {{-- Profile Circle with Arrow --}}
@@ -72,10 +71,10 @@
                     </div>
                 </div>
             @elseif(Auth::guard('manufacturer')->check())
+                {{-- Chat Icon with Notification Badge --}}
                 <a href="/manufacturer/chats" class="w-[40px] h-[40px] flex items-center justify-center p-2 relative">
                     <img src="/assets/images/chat.png" alt="Messages" class="w-full">
-                    <span
-                        class="notification-badge absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center hidden">0</span>
+                    <span class="notification-badge absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center hidden">0</span>
                 </a>
 
                 {{-- Profile Circle with Arrow --}}
@@ -83,7 +82,6 @@
                     <div class="hidden lg:flex items-center gap-2 cursor-pointer toggle_profile_details select-none">
                         <div
                             class="w-[40px] h-[40px] flex items-center justify-center bg-[#F6F6F6] text-[#46484D] rounded-full font-semibold text-xl">
-                            {{-- {{ strtoupper(substr(Auth::guard('manufacturer')->user()->company_name, 0, 1)) }} --}}
                             @if (Auth::guard('manufacturer')->user()->company_logo)
                                 <img src="{{ asset(Auth::guard('manufacturer')->user()->company_logo) }}"
                                     alt="{{ Auth::guard('manufacturer')->user()->company_name }}"

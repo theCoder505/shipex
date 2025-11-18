@@ -43,7 +43,7 @@ class ChatsController extends Controller
         // This would typically check your active_chats tracking in WebSocket server
         // For now, we'll implement a simple version that checks recent activity
         // You might want to implement a more sophisticated method
-        
+
         try {
             $client = new Client([
                 'timeout' => 2.0,
@@ -52,10 +52,10 @@ class ChatsController extends Controller
 
             $response = $client->get('http://localhost:3000/debug/active-chats');
             $data = json_decode($response->getBody(), true);
-            
+
             $user1Chats = $data['activeChats'][$user1] ?? [];
             $user2Chats = $data['activeChats'][$user2] ?? [];
-            
+
             return in_array($user2, $user1Chats) && in_array($user1, $user2Chats);
         } catch (Exception $e) {
             Log::error('Failed to check active chats: ' . $e->getMessage());
@@ -154,16 +154,30 @@ class ChatsController extends Controller
 
             // Check if both users are actively chatting
             $bothUsersChatting = $this->areBothUsersChatting($sender_id, $receiver_id);
-            
-            // Get ALL unseen message IDs from this sender
+
+            // Get ALL unseen message IDs that were sent TO the current user (received by current user)
             $allUnseenMessageIds = Chat::where('sent_to', $sender_id)
                 ->where('sent_by', $receiver_id)
                 ->where('seen', 0)
                 ->pluck('message_uid')
                 ->toArray();
 
-            // Mark ALL messages from this sender as seen in database if both are chatting
-            if (!empty($allUnseenMessageIds) && $bothUsersChatting) {
+            // Mark messages as seen based on conditions
+            $shouldMarkAsSeen = false;
+
+            // Condition 1: Both users are actively chatting
+            if ($bothUsersChatting) {
+                $shouldMarkAsSeen = true;
+            }
+
+            // Condition 2: Current user has opened/viewed the chat (they're fetching messages)
+            // This means they're viewing the conversation, so mark received messages as seen
+            if (!$shouldMarkAsSeen && !empty($allUnseenMessageIds)) {
+                $shouldMarkAsSeen = true;
+            }
+
+            // Update seen status and notify if conditions are met
+            if (!empty($allUnseenMessageIds) && $shouldMarkAsSeen) {
                 Chat::where('sent_to', $sender_id)
                     ->where('sent_by', $receiver_id)
                     ->where('seen', 0)
@@ -179,7 +193,7 @@ class ChatsController extends Controller
             }
 
             return response()->json([
-                'messages' => $messages, 
+                'messages' => $messages,
                 'online_status' => $online_status,
                 'both_users_chatting' => $bothUsersChatting
             ], 200);
@@ -191,7 +205,6 @@ class ChatsController extends Controller
             ], 500);
         }
     }
-
     public function sendMessage(Request $request)
     {
         $sending_to = $request['sending_to'];
@@ -207,7 +220,7 @@ class ChatsController extends Controller
 
         // Check if both users are actively chatting
         $bothUsersChatting = $this->areBothUsersChatting($sent_by, $sending_to);
-        
+
         // Determine seen status - if both are chatting, mark as seen immediately
         $seenStatus = $bothUsersChatting ? 1 : 0;
 
@@ -303,7 +316,7 @@ class ChatsController extends Controller
 
         // Check if both users are actively chatting
         $bothUsersChatting = $this->areBothUsersChatting($sent_by, $sending_to);
-        
+
         // Determine seen status - if both are chatting, mark as seen immediately
         $seenStatus = $bothUsersChatting ? 1 : 0;
 
@@ -551,7 +564,7 @@ class ChatsController extends Controller
                     if ($lastMessage) {
                         $now = \Carbon\Carbon::now();
                         $messageTime = \Carbon\Carbon::parse($lastMessage->created_at);
-                        
+
                         if ($messageTime->diffInSeconds($now) < 60) {
                             $lastMessageTime = $messageTime->diffInSeconds($now) . 's';
                         } elseif ($messageTime->diffInMinutes($now) < 60) {
@@ -614,7 +627,7 @@ class ChatsController extends Controller
                     if ($lastMessage) {
                         $now = \Carbon\Carbon::now();
                         $messageTime = \Carbon\Carbon::parse($lastMessage->created_at);
-                        
+
                         if ($messageTime->diffInSeconds($now) < 60) {
                             $lastMessageTime = $messageTime->diffInSeconds($now) . 's';
                         } elseif ($messageTime->diffInMinutes($now) < 60) {
@@ -667,5 +680,28 @@ class ChatsController extends Controller
                 'message' => 'Error fetching user info'
             ], 500);
         }
+    }
+
+
+
+
+
+
+
+
+
+    public function getTotalUnreadCount(Request $request)
+    {
+        if (Auth::guard('wholesaler')->check()) {
+            $currentUser = Auth::guard('wholesaler')->user()->wholesaler_uid;
+        } else {
+            $currentUser = Auth::guard('manufacturer')->user()->manufacturer_uid;
+        }
+
+        $totalUnread = Chat::where('sent_to', $currentUser)
+            ->where('seen', 0)
+            ->count();
+
+        return response()->json(['count' => $totalUnread]);
     }
 }

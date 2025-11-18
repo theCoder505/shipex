@@ -362,6 +362,13 @@ button {
 
 
 
+.notification_badge{
+    background: #001e50;
+    color: #fff;
+
+}
+
+
 /* Responsive adjustments */
 @media (max-width: 1024px) {
     .footer_links {

@@ -187,7 +187,7 @@ Route::post('/update-last-active', [ChatsController::class, 'updateLastActive'])
 Route::post('/mark-all-unseen-seen', [ChatsController::class, 'markAllUnseenAsSeen']);
 
 
-
+Route::post('/get-total-unread-count', [ChatsController::class, 'getTotalUnreadCount'])->middleware('manufacturer_or_wholesaler');
 
 
 
