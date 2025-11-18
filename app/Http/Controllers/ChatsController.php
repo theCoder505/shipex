@@ -23,7 +23,7 @@ class ChatsController extends Controller
                 'connect_timeout' => 1.0
             ]);
 
-            $client->post('http://localhost:3000/api/notify', [
+            $client->post('wss://shipex.co.kr/ws/api/notify', [
                 'json' => $data,
                 'headers' => [
                     'Content-Type' => 'application/json',
@@ -50,7 +50,7 @@ class ChatsController extends Controller
                 'connect_timeout' => 1.0
             ]);
 
-            $response = $client->get('http://localhost:3000/debug/active-chats');
+            $response = $client->get('wss://shipex.co.kr/ws/debug/active-chats');
             $data = json_decode($response->getBody(), true);
 
             $user1Chats = $data['activeChats'][$user1] ?? [];
