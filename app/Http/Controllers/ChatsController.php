@@ -12,6 +12,7 @@ use Illuminate\Support\Facades\Storage;
 use Intervention\Image\Laravel\Facades\Image;
 use GuzzleHttp\Client;
 use Exception;
+use Illuminate\Support\Facades\Mail;
 
 class ChatsController extends Controller
 {
@@ -23,7 +24,8 @@ class ChatsController extends Controller
                 'connect_timeout' => 1.0
             ]);
 
-            $client->post('wss://shipex.co.kr/ws/api/notify', [
+            // FIXED: Use HTTP to localhost instead of WSS to your domain
+            $client->post('http://localhost:3000/api/notify', [
                 'json' => $data,
                 'headers' => [
                     'Content-Type' => 'application/json',
@@ -40,17 +42,14 @@ class ChatsController extends Controller
     // Check if both users have chat open with each other
     private function areBothUsersChatting($user1, $user2)
     {
-        // This would typically check your active_chats tracking in WebSocket server
-        // For now, we'll implement a simple version that checks recent activity
-        // You might want to implement a more sophisticated method
-
         try {
             $client = new Client([
                 'timeout' => 2.0,
                 'connect_timeout' => 1.0
             ]);
 
-            $response = $client->get('wss://shipex.co.kr/ws/debug/active-chats');
+            // FIXED: Use HTTP to localhost instead of WSS
+            $response = $client->get('http://localhost:3000/debug/active-chats');
             $data = json_decode($response->getBody(), true);
 
             $user1Chats = $data['activeChats'][$user1] ?? [];
@@ -61,6 +60,18 @@ class ChatsController extends Controller
             Log::error('Failed to check active chats: ' . $e->getMessage());
             return false;
         }
+    }
+
+    // Helper function to generate secure storage URLs
+    private function getSecureStorageUrl($path)
+    {
+        return secure_asset('storage/' . $path);
+    }
+
+    // Helper function to generate secure asset URLs
+    private function getSecureAssetUrl($path)
+    {
+        return secure_asset($path);
     }
 
     public function chatRecords()
@@ -205,6 +216,7 @@ class ChatsController extends Controller
             ], 500);
         }
     }
+
     public function sendMessage(Request $request)
     {
         $sending_to = $request['sending_to'];
@@ -212,8 +224,12 @@ class ChatsController extends Controller
 
         if (Auth::guard('wholesaler')->check()) {
             $sent_by = Auth::guard('wholesaler')->user()->wholesaler_uid;
+            $sender_type = 'wholesaler';
+            $sender_name = Auth::guard('wholesaler')->user()->company_name;
         } else {
             $sent_by = Auth::guard('manufacturer')->user()->manufacturer_uid;
+            $sender_type = 'manufacturer';
+            $sender_name = Auth::guard('manufacturer')->user()->company_name_en;
         }
 
         $message_uid = uniqid('msg_');
@@ -224,35 +240,96 @@ class ChatsController extends Controller
         // Determine seen status - if both are chatting, mark as seen immediately
         $seenStatus = $bothUsersChatting ? 1 : 0;
 
+        // Check if this is the first message between these users
+        $isFirstMessage = !Chat::where(function ($query) use ($sent_by, $sending_to) {
+            $query->where('sent_by', $sent_by)
+                ->where('sent_to', $sending_to);
+        })->orWhere(function ($query) use ($sent_by, $sending_to) {
+            $query->where('sent_by', $sending_to)
+                ->where('sent_to', $sent_by);
+        })->exists();
+
         // Save to database
         $chat = Chat::create([
             'message_uid' => $message_uid,
             'sent_by' => $sent_by,
             'sent_to' => $sending_to,
-            'seen' => $seenStatus, // Set based on chat status
+            'seen' => $seenStatus,
             'message_type' => 'text',
             'main_message' => $message_box,
         ]);
 
         // CRITICAL: Notify WebSocket server after saving to database
         if ($chat) {
-            $this->notifyWebSocketServer([
-                'type' => 'new_text_message',
-                'senderId' => $sent_by,
-                'receiverId' => $sending_to,
-                'message' => $message_box,
-                'messageUid' => $message_uid,
-                'timestamp' => $chat->created_at->toISOString(),
-                'seen' => $seenStatus, // Pass the seen status
-                'bothUsersChatting' => $bothUsersChatting
-            ]);
+            try {
+                $this->notifyWebSocketServer([
+                    'type' => 'new_text_message',
+                    'senderId' => $sent_by,
+                    'receiverId' => $sending_to,
+                    'message' => $message_box,
+                    'messageUid' => $message_uid,
+                    'timestamp' => $chat->created_at->toISOString(),
+                    'seen' => $seenStatus,
+                    'bothUsersChatting' => $bothUsersChatting
+                ]);
+                Log::info('WebSocket notification sent successfully for message', ['message_uid' => $message_uid]);
+            } catch (\Exception $e) {
+                Log::error('Failed to send WebSocket notification: ' . $e->getMessage());
+                // Don't fail the entire request if WebSocket fails
+            }
+        }
+
+        // Send email notification if this is the first message
+        if ($isFirstMessage) {
+            try {
+                if ($sender_type == 'wholesaler') {
+                    $receiver = Manufacturer::where('manufacturer_uid', $sending_to)->first();
+                    $receiver_email = $receiver->email ?? null;
+                    $receiver_name = $receiver->company_name_en ?? 'Manufacturer';
+                    $brandname = 'Shipex';
+                    $contact_mail = 'support@shipex.co.kr';
+                } else {
+                    // Sender is manufacturer, receiver is wholesaler
+                    $receiver = Wholesaler::where('wholesaler_uid', $sending_to)->first();
+                    $receiver_email = $receiver->email ?? null;
+                    $receiver_name = $receiver->company_name ?? 'Wholesaler';
+                    $brandname = 'Shipex';
+                    $contact_mail = 'support@shipex.co.kr';
+                }
+
+                if ($receiver_email) {
+                    $data = [
+                        'brandname' => $brandname,
+                        'receiver_name' => $receiver_name,
+                        'sender_name' => $sender_name,
+                        'sender_type' => $sender_type,
+                        'message_preview' => \Illuminate\Support\Str::limit($message_box, 100),
+                        'chat_url' => secure_url($sender_type . '/chats'),
+                        'contact_mail' => $contact_mail
+                    ];
+
+                    Mail::send('mail.message_notification', $data, function ($message) use ($receiver_email, $sender_name) {
+                        $message->to($receiver_email)
+                            ->subject("New conversation started with {$sender_name}");
+                    });
+
+                    Log::info('First message email sent', [
+                        'sender' => $sent_by,
+                        'receiver' => $sending_to,
+                        'receiver_email' => $receiver_email
+                    ]);
+                }
+            } catch (\Exception $e) {
+                Log::error('Failed to send first message email: ' . $e->getMessage());
+            }
         }
 
         return response()->json([
             'status' => 'success',
             'message_uid' => $message_uid,
             'timestamp' => $chat->created_at->toISOString(),
-            'seen' => $seenStatus
+            'seen' => $seenStatus,
+            'is_first_message' => $isFirstMessage
         ], 200);
     }
 
@@ -300,7 +377,7 @@ class ChatsController extends Controller
         }
 
         $fileData = [
-            'file_url' => asset("storage/{$filePath}"),
+            'file_url' => $this->getSecureStorageUrl($filePath), // Use secure URL
             'file_path' => $filePath,
             'original_name' => $originalName,
             'file_type' => $fileType,
@@ -332,17 +409,23 @@ class ChatsController extends Controller
 
         // CRITICAL: Notify WebSocket server after saving to database
         if ($chat) {
-            $this->notifyWebSocketServer([
-                'type' => 'new_file_message',
-                'senderId' => $sent_by,
-                'receiverId' => $sending_to,
-                'fileData' => $fileData,
-                'messageText' => $message_text,
-                'messageUid' => $message_uid,
-                'timestamp' => $chat->created_at->toISOString(),
-                'seen' => $seenStatus, // Pass the seen status
-                'bothUsersChatting' => $bothUsersChatting
-            ]);
+            try {
+                $this->notifyWebSocketServer([
+                    'type' => 'new_file_message',
+                    'senderId' => $sent_by,
+                    'receiverId' => $sending_to,
+                    'fileData' => $fileData,
+                    'messageText' => $message_text,
+                    'messageUid' => $message_uid,
+                    'timestamp' => $chat->created_at->toISOString(),
+                    'seen' => $seenStatus, // Pass the seen status
+                    'bothUsersChatting' => $bothUsersChatting
+                ]);
+                Log::info('WebSocket notification sent successfully for file message', ['message_uid' => $message_uid]);
+            } catch (\Exception $e) {
+                Log::error('Failed to send WebSocket notification for file: ' . $e->getMessage());
+                // Don't fail the entire request if WebSocket fails
+            }
         }
 
         return response()->json([
@@ -456,7 +539,7 @@ class ChatsController extends Controller
                         'user' => [
                             'id' => $user->manufacturer_uid,
                             'name' => $user->company_name_en,
-                            'profile_picture' => $user->company_logo ? asset($user->company_logo) : 'https://ui-avatars.com/api/?name=' . urlencode($user->company_name_en) . '&background=3b82f6&color=fff'
+                            'profile_picture' => $user->company_logo ? $this->getSecureAssetUrl($user->company_logo) : 'https://ui-avatars.com/api/?name=' . urlencode($user->company_name_en) . '&background=3b82f6&color=fff'
                         ]
                     ]);
                 }
@@ -468,7 +551,7 @@ class ChatsController extends Controller
                         'user' => [
                             'id' => $user->wholesaler_uid,
                             'name' => $user->company_name,
-                            'profile_picture' => $user->profile_picture ? asset($user->profile_picture) : 'https://ui-avatars.com/api/?name=' . urlencode($user->company_name) . '&background=3b82f6&color=fff'
+                            'profile_picture' => $user->profile_picture ? $this->getSecureAssetUrl($user->profile_picture) : 'https://ui-avatars.com/api/?name=' . urlencode($user->company_name) . '&background=3b82f6&color=fff'
                         ]
                     ]);
                 }
@@ -597,7 +680,7 @@ class ChatsController extends Controller
                         'user' => [
                             'id' => $user->manufacturer_uid,
                             'name' => $user->company_name_en,
-                            'profile_picture' => $user->company_logo ? asset($user->company_logo) : 'https://ui-avatars.com/api/?name=' . urlencode($user->company_name_en) . '&background=3b82f6&color=fff',
+                            'profile_picture' => $user->company_logo ? $this->getSecureAssetUrl($user->company_logo) : 'https://ui-avatars.com/api/?name=' . urlencode($user->company_name_en) . '&background=3b82f6&color=fff',
                             'last_message' => $lastMessageText,
                             'message_icon' => $messageIcon,
                             'last_message_time' => $lastMessageTime,
@@ -660,7 +743,7 @@ class ChatsController extends Controller
                         'user' => [
                             'id' => $user->wholesaler_uid,
                             'name' => $user->company_name,
-                            'profile_picture' => $user->profile_picture ? asset($user->profile_picture) : 'https://ui-avatars.com/api/?name=' . urlencode($user->company_name) . '&background=3b82f6&color=fff',
+                            'profile_picture' => $user->profile_picture ? $this->getSecureAssetUrl($user->profile_picture) : 'https://ui-avatars.com/api/?name=' . urlencode($user->company_name) . '&background=3b82f6&color=fff',
                             'last_message' => $lastMessageText,
                             'message_icon' => $messageIcon,
                             'last_message_time' => $lastMessageTime,
@@ -681,14 +764,6 @@ class ChatsController extends Controller
             ], 500);
         }
     }
-
-
-
-
-
-
-
-
 
     public function getTotalUnreadCount(Request $request)
     {
