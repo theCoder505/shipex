@@ -267,7 +267,7 @@
                                             <p class="text-sm text-gray-600">Drag & drop the file here or <span
                                                     class="text-blue-600 underline cursor-pointer">select file</span>
                                             </p>
-                                            <p class="text-xs text-gray-500 mt-1">(e.g. ISO, CE, RoHS, etc.)</p>
+                                            <p class="text-xs text-gray-500 mt-1">(e.g. ISO, CE,ROHS, etc.)</p>
                                             <p class="text-xs text-gray-500 file-name"></p>
                                         </div>
                                     </div>
@@ -310,7 +310,7 @@
                                         </svg>
                                         <p class="text-sm text-gray-600">Drag & drop the file here or <span
                                                 class="text-blue-600 underline cursor-pointer">select file</span></p>
-                                        <p class="text-xs text-gray-500 mt-1">(e.g. ISO, CE, RoHS, etc.)</p>
+                                        <p class="text-xs text-gray-500 mt-1">(e.g. ISO, CE,ROHS, etc.)</p>
                                         <p class="text-xs text-gray-500 file-name"></p>
                                     </div>
                                 </div>

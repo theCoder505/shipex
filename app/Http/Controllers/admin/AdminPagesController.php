@@ -7,6 +7,7 @@ use App\Models\Admin;
 use App\Models\CouponCode;
 use App\Models\FAQ;
 use App\Models\Manufacturer;
+use App\Models\PackageDetails;
 use App\Models\PaymentRecord;
 use App\Models\Reviews;
 use App\Models\WebsiteInformation;
@@ -379,6 +380,123 @@ class AdminPagesController extends Controller
         CouponCode::where('id', $coupon_id)->delete();
         return redirect()->back()->with('success', 'Coupon code removed successfully!');
     }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    public function addNewSubscriptionPackage(Request $request)
+    {
+        try {
+            $validated = $request->validate([
+                'package_of' => 'required|in:starter,premium,ultimate',
+                'service_name' => 'required|string|max:255',
+                'service_available' => 'required|boolean'
+            ]);
+
+            PackageDetails::create($validated);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Service added successfully!'
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to add service'
+            ], 500);
+        }
+    }
+
+    public function SubscriptionPackages()
+    {
+        $services = PackageDetails::orderBy('package_of')->orderBy('id')->get();
+        return view('admin.package_settings', compact('services'));
+    }
+
+    public function updateSubscriptionPackage(Request $request)
+    {
+        try {
+            $validated = $request->validate([
+                'id' => 'required|exists:package_details,id',
+                'service_name' => 'sometimes|string|max:255',
+                'service_available' => 'sometimes|boolean'
+            ]);
+
+            $service = PackageDetails::findOrFail($validated['id']);
+
+            if (isset($validated['service_name'])) {
+                $service->service_name = $validated['service_name'];
+            }
+
+            if (isset($validated['service_available'])) {
+                $service->service_available = $validated['service_available'];
+            }
+
+            $service->save();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Service updated successfully!'
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to update service'
+            ], 500);
+        }
+    }
+
+    public function deleteSubscriptionPackage(Request $request)
+    {
+        try {
+            $validated = $request->validate([
+                'id' => 'required|exists:package_details,id'
+            ]);
+
+            PackageDetails::findOrFail($validated['id'])->delete();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Service removed successfully'
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to delete service'
+            ], 500);
+        }
+    }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

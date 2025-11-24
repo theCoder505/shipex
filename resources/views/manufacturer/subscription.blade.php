@@ -5,6 +5,7 @@
 @section('style')
     <link rel="stylesheet" href="/assets/css/packages.css">
 @endsection
+
 @section('content')
     <div class="hero_section my-8 px-4 lg:px-8 max-w-[1200px] mx-auto">
         <h1 class="hero-title">Purchase Your Package</h1>
@@ -33,7 +34,7 @@
             <input type="hidden" name="choosed_currency" id="choosedCurrency" value="{{ $currency }}">
 
             <div class="grid grid-cols-1 md:grid-cols-3 gap-8 mb-10">
-                <!-- Monthly Package -->
+                <!-- Starter Package (Monthly) -->
                 <div class="subscription-card @if ($package == 'monthly') active @endif"
                     onclick="selectPackage('monthly', this)">
                     <div class="card-header">
@@ -62,48 +63,33 @@
                     </div>
 
                     <div class="feature-list">
-                        <div class="feature-item">
-                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7">
-                                </path>
-                            </svg>
-                            <span>The point of using lorem offer</span>
-                        </div>
-                        <div class="feature-item">
-                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7">
-                                </path>
-                            </svg>
-                            <span>Lorem Ipsum is simply dummy</span>
-                        </div>
-                        <div class="feature-item">
-                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7">
-                                </path>
-                            </svg>
-                            <span>Premium Phone Support</span>
-                        </div>
-                        <div class="feature-item">
-                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7">
-                                </path>
-                            </svg>
-                            <span>Unlimited Bandwidth</span>
-                        </div>
-                        <div class="feature-item">
-                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7">
-                                </path>
-                            </svg>
-                            <span>Lorem Ipsum is simply dummy</span>
-                        </div>
-                        <div class="feature-item">
-                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7">
-                                </path>
-                            </svg>
-                            <span>The point of using lorem</span>
-                        </div>
+                        @php
+                            $starterServices = $services->where('package_of', 'starter');
+                        @endphp
+                        
+                        @if($starterServices->count() > 0)
+                            @foreach($starterServices as $service)
+                                <div class="feature-item {{ $service->service_available ? '' : '' }}">
+                                    @if($service->service_available)
+                                        <svg class="w-5 h-5 text-[#0095ff]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                                        </svg>
+                                    @else
+                                        <svg class="w-5 h-5 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                                        </svg>
+                                    @endif
+                                    <span class="{{ $service->service_available ? '' : 'text-gray-300' }}">{{ $service->service_name }}</span>
+                                </div>
+                            @endforeach
+                        @else
+                            <div class="feature-item">
+                                <svg class="w-5 h-5 text-[#0095ff]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                                </svg>
+                                <span>Basic Features Included</span>
+                            </div>
+                        @endif
                     </div>
 
                     <div class="text-center pb-8">
@@ -111,7 +97,7 @@
                     </div>
                 </div>
 
-                <!-- 6 Monthly Package -->
+                <!-- Premium Package (6 Months) -->
                 <div class="subscription-card @if ($package == '6months') active @endif"
                     onclick="selectPackage('6months', this)">
                     <div class="discount-badge">SAVE {{ $half_yearly_discount }}%</div>
@@ -141,48 +127,33 @@
                     </div>
 
                     <div class="feature-list">
-                        <div class="feature-item">
-                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7">
-                                </path>
-                            </svg>
-                            <span>The point of using lorem offer</span>
-                        </div>
-                        <div class="feature-item">
-                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7">
-                                </path>
-                            </svg>
-                            <span>Lorem Ipsum is simply dummy</span>
-                        </div>
-                        <div class="feature-item">
-                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7">
-                                </path>
-                            </svg>
-                            <span>Premium Phone Support</span>
-                        </div>
-                        <div class="feature-item">
-                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7">
-                                </path>
-                            </svg>
-                            <span>Unlimited Bandwidth</span>
-                        </div>
-                        <div class="feature-item">
-                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7">
-                                </path>
-                            </svg>
-                            <span>Lorem Ipsum is simply dummy</span>
-                        </div>
-                        <div class="feature-item">
-                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7">
-                                </path>
-                            </svg>
-                            <span>The point of using lorem</span>
-                        </div>
+                        @php
+                            $premiumServices = $services->where('package_of', 'premium');
+                        @endphp
+                        
+                        @if($premiumServices->count() > 0)
+                            @foreach($premiumServices as $service)
+                                <div class="feature-item {{ $service->service_available ? '' : '' }}">
+                                    @if($service->service_available)
+                                        <svg class="w-5 h-5 text-[#0095ff]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                                        </svg>
+                                    @else
+                                        <svg class="w-5 h-5 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                                        </svg>
+                                    @endif
+                                    <span class="{{ $service->service_available ? '' : 'text-gray-300' }}">{{ $service->service_name }}</span>
+                                </div>
+                            @endforeach
+                        @else
+                            <div class="feature-item">
+                                <svg class="w-5 h-5 text-[#0095ff]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                                </svg>
+                                <span>Premium Features Included</span>
+                            </div>
+                        @endif
                     </div>
 
                     <div class="text-center pb-8">
@@ -190,7 +161,7 @@
                     </div>
                 </div>
 
-                <!-- Yearly Package -->
+                <!-- Ultimate Package (Yearly) -->
                 <div class="subscription-card @if ($package == 'yearly') active @endif"
                     onclick="selectPackage('yearly', this)">
                     <div class="discount-badge">SAVE {{ $yearly_discount }}%</div>
@@ -221,48 +192,33 @@
                     </div>
 
                     <div class="feature-list">
-                        <div class="feature-item">
-                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7">
-                                </path>
-                            </svg>
-                            <span>The point of using lorem offer</span>
-                        </div>
-                        <div class="feature-item">
-                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7">
-                                </path>
-                            </svg>
-                            <span>Lorem Ipsum is simply dummy</span>
-                        </div>
-                        <div class="feature-item">
-                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7">
-                                </path>
-                            </svg>
-                            <span>Premium Phone Support</span>
-                        </div>
-                        <div class="feature-item">
-                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7">
-                                </path>
-                            </svg>
-                            <span>Unlimited Bandwidth</span>
-                        </div>
-                        <div class="feature-item">
-                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7">
-                                </path>
-                            </svg>
-                            <span>Lorem Ipsum is simply dummy</span>
-                        </div>
-                        <div class="feature-item">
-                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7">
-                                </path>
-                            </svg>
-                            <span>The point of using lorem</span>
-                        </div>
+                        @php
+                            $ultimateServices = $services->where('package_of', 'ultimate');
+                        @endphp
+                        
+                        @if($ultimateServices->count() > 0)
+                            @foreach($ultimateServices as $service)
+                                <div class="feature-item {{ $service->service_available ? '' : '' }}">
+                                    @if($service->service_available)
+                                        <svg class="w-5 h-5 text-[#0095ff]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                                        </svg>
+                                    @else
+                                        <svg class="w-5 h-5 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                                        </svg>
+                                    @endif
+                                    <span class="{{ $service->service_available ? '' : 'text-gray-300' }}">{{ $service->service_name }}</span>
+                                </div>
+                            @endforeach
+                        @else
+                            <div class="feature-item">
+                                <svg class="w-5 h-5 text-[#0095ff]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                                </svg>
+                                <span>Ultimate Features Included</span>
+                            </div>
+                        @endif
                     </div>
 
                     <div class="text-center pb-8">
@@ -314,6 +270,7 @@
         </form>
     </div>
 @endsection
+
 @section('scripts')
     <script>
         let selectedPackage = null;

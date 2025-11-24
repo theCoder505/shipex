@@ -446,7 +446,7 @@
                         <div class="grid_item flex gap-4 items-center">
                             <img src="/assets/images/iso.png" alt="" class="rounded-full h-[80px] w-[80px]">
                             <div class="">
-                                <h3 class="text-xl text-[#121212] dark:text-gray-100">{{ $certificate['name'] }}</h3>
+                                <h3 class="text-[#121212] dark:text-gray-100">{{ $certificate['name'] }}</h3>
                                 <a href="{{ asset($certificate['document']) }}" target="_blank"
                                     class="underline text-blue-600 dark:text-blue-400">
                                     See certification

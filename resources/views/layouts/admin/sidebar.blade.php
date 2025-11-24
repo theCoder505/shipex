@@ -58,6 +58,11 @@
                     <i class="fas fa-wrench w-4"></i>
                     <span>General</span>
                 </a>
+                <a href="/admin/settings/subscription-packages"
+                    class="flex items-center gap-3 px-4 py-2 text-sm text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800 rounded-lg transition-colors package_settings sidebar_tab">
+                    <i class="fas fa-receipt w-4"></i>
+                    <span>Packages</span>
+                </a>
                 <a href="/admin/settings/coupon-codes"
                     class="flex items-center gap-3 px-4 py-2 text-sm text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800 rounded-lg transition-colors coupon_codes sidebar_tab">
                     <i class="fas fa-gift"></i>

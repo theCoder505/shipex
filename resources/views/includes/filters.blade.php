@@ -135,9 +135,9 @@
 
                         <label
                             class="px-4 py-2 rounded-full border border-gray-400 cursor-pointer hover:bg-[#003FB4] text-[#121212] hover:text-white transition-colors">
-                            <input type="checkbox" name="certification" value="rohs"
+                            <input type="checkbox" name="certification" value="ROHS"
                                 class="hidden certification-checkbox">
-                            <span class="text-base lg:text-[18px]">RoHS</span>
+                            <span class="text-base lg:text-[18px]">ROHS</span>
                         </label>
 
                         <label

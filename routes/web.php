@@ -234,6 +234,12 @@ Route::post('/admin/coupon-code/update', [AdminPagesController::class, 'updateCo
 Route::post('/admin/coupon-code/delete', [AdminPagesController::class, 'deleteCouponCode'])->middleware('admin');
 
 
+Route::post('/admin/settings/subscription-packages/create', [AdminPagesController::class, 'addNewSubscriptionPackage'])->middleware('admin');
+Route::get('/admin/settings/subscription-packages', [AdminPagesController::class, 'SubscriptionPackages'])->middleware('admin');
+Route::post('/admin/settings/subscription-packages/update', [AdminPagesController::class, 'updateSubscriptionPackage'])->middleware('admin');
+Route::post('/admin/settings/subscription-packages/delete', [AdminPagesController::class, 'deleteSubscriptionPackage'])->middleware('admin');
+
+
 Route::get('/admin/account-settings', [AdminPagesController::class, 'adminAccount'])->middleware('admin');
 Route::post('/admin/verify-account-email-update', [AdminPagesController::class, 'adminEmailVerification'])->middleware('admin');
 Route::post('/admin/verify-email-otp', [AdminPagesController::class, 'verifyEmailChangeOTP'])->middleware('admin');

@@ -64,10 +64,10 @@
                         <span class="ml-3 text-sm text-gray-700">US</span>
                     </label>
                     <label class="flex items-center">
-                        <input type="checkbox" name="standards[]" value="RoHS"
-                            {{ in_array('RoHS', $standards) ? 'checked' : '' }}
+                        <input type="checkbox" name="standards[]" value="ROHS"
+                            {{ in_array('ROHS', $standards) ? 'checked' : '' }}
                             class="w-5 h-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500">
-                        <span class="ml-3 text-sm text-gray-700">RoHS</span>
+                        <span class="ml-3 text-sm text-gray-700">ROHS</span>
                     </label>
                     <label class="flex items-center">
                         <input type="checkbox" name="standards[]" value="Other"

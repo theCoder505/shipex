@@ -85,7 +85,7 @@ body {
 
 .feature-item svg {
     flex-shrink: 0;
-    color: #0095ff;
+    /* color: #0095ff; */
 }
 
 .shop-btn {

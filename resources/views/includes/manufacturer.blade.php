@@ -96,7 +96,7 @@
                         <p class="text-gray-600 flex items-center gap-1 font-normal mt-2">
                             <img src="/assets/images/map-pin.png" alt="Location" class="h-4">
                             <span
-                                class="truncate">{{ $manufacturer->company_address_en ?? 'Location not specified' }}</span>
+                                class="truncate max-w-[350px]">{{ $manufacturer->company_address_en ?? 'Location not specified' }}</span>
                         </p>
                         <p class="text-gray-600 flex items-center gap-1 font-normal mt-2">
                             <img src="/assets/images/star.png" alt="Rating" class="h-4 w-4">
@@ -110,21 +110,21 @@
                 <div class="related_tags flex gap-2 flex-wrap mt-4 mb-6">
                     @if ($manufacturer->industry_category)
                         <div
-                            class="bg-[#f6f6f6] text-[#46484d] rounded-full font-normal text-sm px-3 py-1.5 border border-gray-300">
+                            class="bg-[#f6f6f6] text-[#46484d] rounded-full font-normal text-sm px-3 py-1.5 border border-gray-300 capitalize">
                             {{ $manufacturer->industry_category }}
                         </div>
                     @endif
 
                     @if ($manufacturer->main_product_category)
                         <div
-                            class="bg-[#f6f6f6] text-[#46484d] rounded-full font-normal text-sm px-3 py-1.5 border border-gray-300">
+                            class="bg-[#f6f6f6] text-[#46484d] rounded-full font-normal text-sm px-3 py-1.5 border border-gray-300 capitalize">
                             {{ $manufacturer->main_product_category }}
                         </div>
                     @endif
 
                     @if ($manufacturer->business_type)
                         <div
-                            class="bg-[#f6f6f6] text-[#46484d] rounded-full font-normal text-sm px-3 py-1.5 border border-gray-300">
+                            class="bg-[#f6f6f6] text-[#46484d] rounded-full font-normal text-sm px-3 py-1.5 border border-gray-300 capitalize">
                             {{ $manufacturer->business_type }}
                         </div>
                     @endif

@@ -995,7 +995,7 @@ step_three.blade.php:
                                             <p class="text-sm text-gray-600">Drag & drop the file here or <span
                                                     class="text-blue-600 underline cursor-pointer">select file</span>
                                             </p>
-                                            <p class="text-xs text-gray-500 mt-1">(e.g. ISO, CE, RoHS, etc.)</p>
+                                            <p class="text-xs text-gray-500 mt-1">(e.g. ISO, CE,ROHS, etc.)</p>
                                             <p class="text-xs text-gray-500 file-name"></p>
                                         </div>
                                     </div>
@@ -1038,7 +1038,7 @@ step_three.blade.php:
                                         </svg>
                                         <p class="text-sm text-gray-600">Drag & drop the file here or <span
                                                 class="text-blue-600 underline cursor-pointer">select file</span></p>
-                                        <p class="text-xs text-gray-500 mt-1">(e.g. ISO, CE, RoHS, etc.)</p>
+                                        <p class="text-xs text-gray-500 mt-1">(e.g. ISO, CE,ROHS, etc.)</p>
                                         <p class="text-xs text-gray-500 file-name"></p>
                                     </div>
                                 </div>
@@ -1288,10 +1288,10 @@ step_four.blade.php:
                         <span class="ml-3 text-sm text-gray-700">US</span>
                     </label>
                     <label class="flex items-center">
-                        <input type="checkbox" name="standards[]" value="RoHS"
-                            {{ in_array('RoHS', $standards) ? 'checked' : '' }}
+                        <input type="checkbox" name="standards[]" value="ROHS"
+                            {{ in_array('ROHS', $standards) ? 'checked' : '' }}
                             class="w-5 h-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500">
-                        <span class="ml-3 text-sm text-gray-700">RoHS</span>
+                        <span class="ml-3 text-sm text-gray-700">ROHS</span>
                     </label>
                     <label class="flex items-center">
                         <input type="checkbox" name="standards[]" value="Other"
@@ -2641,7 +2641,7 @@ document.addEventListener('DOMContentLoaded', function () {
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
                                 </svg>
                                 <p class="text-sm text-gray-600">Drag & drop the file here or <span class="text-blue-600 underline cursor-pointer">select file</span></p>
-                                <p class="text-xs text-gray-500 mt-1">(e.g. ISO, CE, RoHS, etc.)</p>
+                                <p class="text-xs text-gray-500 mt-1">(e.g. ISO, CE,ROHS, etc.)</p>
                                 <p class="text-xs text-gray-500 file-name"></p>
                             </div>
                         </div>

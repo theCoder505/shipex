@@ -1,6 +1,6 @@
 @extends('layouts.surface.app')
 
-@section('title', 'Welcome to multi lingual communication and global outsourcing trade service or platform')
+@section('title', 'Welcome To Multilingual Communication and Global Outsourcing Platform')
 
 @section('style')
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/OwlCarousel2/2.3.4/assets/owl.carousel.min.css">

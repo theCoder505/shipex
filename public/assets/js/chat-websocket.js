@@ -7,7 +7,7 @@ let isTyping = false;
 // Initialize WebSocket connection
 function initWebSocket() {
     const userType = $('meta[name="user-type"]').attr('content');
-    const wsUrl = `wss://shipex.co.kr/ws?userId=${user_uid}&userType=${userType}`;
+    const wsUrl = `ws://localhost:3000?userId=${user_uid}&userType=${userType}`;
 
     // Use global WebSocket if available, otherwise create new one
     if (window.globalWebSocket && window.globalWebSocket.ws) {

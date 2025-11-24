@@ -5,6 +5,7 @@ namespace App\Http\Controllers\menufacturer;
 use App\Http\Controllers\Controller;
 use App\Models\CouponCode;
 use App\Models\Manufacturer;
+use App\Models\PackageDetails;
 use App\Models\PaymentRecord;
 use App\Models\WebsiteInformation;
 use Illuminate\Http\Request;
@@ -104,6 +105,8 @@ class SubscriptionController extends Controller
             $yearly_discount = round((($yearly_total - $yearly_fee_amount) / $yearly_total) * 100, 2);
         }
 
+        $services = PackageDetails::orderBy('package_of')->orderBy('id')->get();
+
         return view('manufacturer.subscription', compact(
             'profile_data',
             'package',
@@ -118,6 +121,7 @@ class SubscriptionController extends Controller
             'currency',
             'currency_icon',
             'exchange_rate',
+            'services'
         ));
     }
 

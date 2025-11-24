@@ -329,7 +329,7 @@ class SurfacePagesController extends Controller
 
 
 
-    
+
     public function helpPage()
     {
         $faqs = FAQ::orderBy('id', 'DESC')->get();
@@ -354,8 +354,8 @@ class SurfacePagesController extends Controller
 
     public function ContactUs()
     {
-        $page_content = [];
-        return view('surface.terms_of_use', compact('page_content'));
+        $faqs = FAQ::orderBy('id', 'DESC')->get();
+        return view('surface.help', compact('faqs'));
     }
 
 
