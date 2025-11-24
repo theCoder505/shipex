@@ -12,7 +12,7 @@ function initWebSocket() {
     // Use global WebSocket if available, otherwise create new one
     if (window.globalWebSocket && window.globalWebSocket.ws) {
         ws = window.globalWebSocket.ws;
-        console.log('✅ Using existing global WebSocket connection');
+        // console.log('✅ Using existing global WebSocket connection');
         setupWebSocketHandlers();
         return;
     }
@@ -20,7 +20,7 @@ function initWebSocket() {
     ws = new WebSocket(wsUrl);
 
     ws.onopen = function () {
-        console.log('💬 Chat WebSocket connected');
+        // console.log('💬 Chat WebSocket connected');
         clearInterval(reconnectInterval);
 
         // Notify server about currently open chat if any
@@ -47,11 +47,11 @@ function initWebSocket() {
     };
 
     ws.onclose = function () {
-        console.log('💬 Chat WebSocket disconnected');
+        // console.log('💬 Chat WebSocket disconnected');
         showConnectionStatus('disconnected');
 
         reconnectInterval = setInterval(function () {
-            console.log('Attempting to reconnect...');
+            // console.log('Attempting to reconnect...');
             initWebSocket();
         }, 5000);
     };
@@ -90,11 +90,11 @@ function setupWebSocketHandlers() {
 
 // Handle incoming WebSocket messages
 function handleWebSocketMessage(data) {
-    console.log('💬 Chat WebSocket message:', data.type);
+    // console.log('💬 Chat WebSocket message:', data.type);
 
     switch (data.type) {
         case 'connected':
-            console.log('Connected to chat server:', data.message);
+            // console.log('Connected to chat server:', data.message);
             break;
 
         case 'new_message':
@@ -138,24 +138,24 @@ function handleWebSocketMessage(data) {
             break;
 
         default:
-            console.log('Unknown message type:', data.type);
+            // console.log('Unknown message type:', data.type);
     }
 }
 
 // Handle new incoming message (sent from server after DB save)
 function handleNewMessage(data) {
-    console.log('New message received:', data);
+    // console.log('New message received:', data);
 
     // Check if the message is from the currently active chat
     const isFromActiveChat = data.senderId === sending_to;
-    console.log('Is from active chat:', isFromActiveChat, 'senderId:', data.senderId, 'sending_to:', sending_to);
+    // console.log('Is from active chat:', isFromActiveChat, 'senderId:', data.senderId, 'sending_to:', sending_to);
 
     // Remove "No chat history yet" message if it exists
     $('.no_chats').remove();
 
     if (isFromActiveChat) {
         // Message is from the currently active chat - display it
-        console.log('Message from active chat');
+        // console.log('Message from active chat');
         const isSeen = data.seen || false;
 
         if (data.messageType === 'text') {
@@ -168,7 +168,7 @@ function handleNewMessage(data) {
 
         // CRITICAL: Since we have the chat open with this sender, mark as seen immediately
         if (!isSeen) {
-            console.log('🔵 Marking incoming message as seen (chat is open):', data.messageUid);
+            // console.log('🔵 Marking incoming message as seen (chat is open):', data.messageUid);
             markMessagesAsSeenInBackend([data.messageUid], data.senderId);
             
             // Update UI immediately
@@ -186,7 +186,7 @@ function handleNewMessage(data) {
         updateChatListItem(data.senderId, data, false);
     } else {
         // Message is from another chat - update unread badge or create new chat tab
-        console.log('Message from different chat, updating unread badge');
+        // console.log('Message from different chat, updating unread badge');
         
         // Check if chat tab exists for this user
         const chatTab = $(`.chat_tab[data-userid="${data.senderId}"]`);
@@ -206,7 +206,7 @@ function handleNewMessage(data) {
 
 // Handle single message seen notification
 function handleSingleMessageSeen(data) {
-    console.log('Single message seen:', data);
+    // console.log('Single message seen:', data);
     const { messageUid, seenBy } = data;
     
     // Update the UI for this specific message
@@ -222,7 +222,7 @@ function handleSingleMessageSeen(data) {
 
 // Handle all messages seen notification
 function handleAllMessagesSeen(data) {
-    console.log('All messages seen by:', data.seenBy);
+    // console.log('All messages seen by:', data.seenBy);
     
     // Update all sent messages to show as seen
     $('.sent_message').each(function() {
@@ -234,7 +234,7 @@ function handleAllMessagesSeen(data) {
 
 // Handle user chat opened notification
 function handleUserChatOpened(data) {
-    console.log('User opened chat with us:', data.userId);
+    // console.log('User opened chat with us:', data.userId);
     // You can use this to show that the other user is viewing the chat
     // Optional: Show a "User is viewing the chat" indicator
 }
@@ -246,7 +246,7 @@ function createNewChatTabFromMessage(userId, messageData) {
     // Check if this is from the currently active chat
     const isFromActiveChat = userId === sending_to;
     
-    console.log('createNewChatTabFromMessage - userId:', userId, 'sending_to:', sending_to, 'isFromActiveChat:', isFromActiveChat);
+    // console.log('createNewChatTabFromMessage - userId:', userId, 'sending_to:', sending_to, 'isFromActiveChat:', isFromActiveChat);
 
     // Remove "No chat history yet" message if it exists
     $('.no_chats').remove();
@@ -280,7 +280,7 @@ function createNewChatTabFromMessage(userId, messageData) {
                 // Only show unread badge if NOT from active chat AND message is from other user
                 const unreadCount = (!isFromActiveChat && !isSent) ? 1 : 0;
 
-                console.log('Creating new chat tab from message with unreadCount:', unreadCount);
+                // console.log('Creating new chat tab from message with unreadCount:', unreadCount);
 
                 const chatTabHtml = `
                     <div class="chat_tab inactive_chat_tab" data-userid="${user.id}" onclick="activateChat(this)">
@@ -318,7 +318,7 @@ function createNewChatTabFromMessage(userId, messageData) {
 
 // Handle messages seen - update ALL messages from this sender
 function handleMessagesSeen(data) {
-    console.log('Messages seen notification received:', data);
+    // console.log('Messages seen notification received:', data);
     if (data.senderId === sending_to) {
         // Update all seen indicators to blue
         $('.sent_message').each(function() {
@@ -331,7 +331,7 @@ function handleMessagesSeen(data) {
 
 // Mark messages as seen in backend
 function markMessagesAsSeenInBackend(messageUids, senderId) {
-    console.log('🔵 Marking messages as seen in backend:', messageUids);
+    // console.log('🔵 Marking messages as seen in backend:', messageUids);
     
     // Notify WebSocket server
     if (ws && ws.readyState === WebSocket.OPEN) {
@@ -352,7 +352,7 @@ function markMessagesAsSeenInBackend(messageUids, senderId) {
             '_token': csrf_token
         },
         success: function (response) {
-            console.log('✅ Messages marked as seen in database');
+            // console.log('✅ Messages marked as seen in database');
         },
         error: function (xhr, status, error) {
             console.error('❌ Error marking messages as seen:', error);
@@ -363,7 +363,7 @@ function markMessagesAsSeenInBackend(messageUids, senderId) {
 // Notify chat opened - CRITICAL: This tells server which chat we have open
 window.notifyChatOpened = function (withUserId) {
     if (ws && ws.readyState === WebSocket.OPEN) {
-        console.log('🔓 Notifying server: Chat opened with', withUserId);
+        // console.log('🔓 Notifying server: Chat opened with', withUserId);
         ws.send(JSON.stringify({
             type: 'chat_opened',
             withUserId: withUserId
@@ -374,7 +374,7 @@ window.notifyChatOpened = function (withUserId) {
 // Notify chat closed - CRITICAL: This tells server we closed the chat
 window.notifyChatClosed = function (withUserId) {
     if (ws && ws.readyState === WebSocket.OPEN) {
-        console.log('🔒 Notifying server: Chat closed with', withUserId);
+        // console.log('🔒 Notifying server: Chat closed with', withUserId);
         ws.send(JSON.stringify({
             type: 'chat_closed',
             withUserId: withUserId
@@ -387,7 +387,7 @@ function updateExistingChatTab(chatTab, messageData, shouldIncrementUnread = tru
     const isSent = messageData.senderId === user_uid;
     const isFromActiveChat = chatTab.attr('data-userid') === sending_to;
 
-    console.log('updateExistingChatTab - shouldIncrementUnread:', shouldIncrementUnread, 'isFromActiveChat:', isFromActiveChat, 'isSent:', isSent);
+    // console.log('updateExistingChatTab - shouldIncrementUnread:', shouldIncrementUnread, 'isFromActiveChat:', isFromActiveChat, 'isSent:', isSent);
 
     // Remove "No chat history yet" message if it exists
     $('.no_chats').remove();
@@ -418,10 +418,10 @@ function updateExistingChatTab(chatTab, messageData, shouldIncrementUnread = tru
         const currentCount = parseInt(badge.text()) || 0;
         const newCount = currentCount + 1;
         
-        console.log('Incrementing unread badge:', currentCount, '->', newCount);
+        // console.log('Incrementing unread badge:', currentCount, '->', newCount);
         badge.removeClass('hidden').text(newCount);
     } else {
-        console.log('Skipping unread badge increment - Active chat or sent message');
+        // console.log('Skipping unread badge increment - Active chat or sent message');
     }
 
     // Move to top ONLY if new message (not when just opening chat)
@@ -434,7 +434,7 @@ function updateChatListItem(userId, messageData, shouldUpdateUnread = true) {
 
     // Check if this is from the currently active chat
     const isFromActiveChat = userId === sending_to;
-    console.log('updateChatListItem - userId:', userId, 'sending_to:', sending_to, 'isFromActiveChat:', isFromActiveChat, 'shouldUpdateUnread:', shouldUpdateUnread);
+    // console.log('updateChatListItem - userId:', userId, 'sending_to:', sending_to, 'isFromActiveChat:', isFromActiveChat, 'shouldUpdateUnread:', shouldUpdateUnread);
 
     // Check if chat tab already exists
     let chatTab = $(`.chat_tab[data-userid="${userId}"]`);
@@ -456,7 +456,7 @@ function updateChatListItem(userId, messageData, shouldUpdateUnread = true) {
 function createNewChatTab(userId, sendingToType, messageData, shouldShowUnread = true) {
     const isFromActiveChat = userId === sending_to;
     
-    console.log('createNewChatTab - userId:', userId, 'sending_to:', sending_to, 'isFromActiveChat:', isFromActiveChat, 'shouldShowUnread:', shouldShowUnread);
+    // console.log('createNewChatTab - userId:', userId, 'sending_to:', sending_to, 'isFromActiveChat:', isFromActiveChat, 'shouldShowUnread:', shouldShowUnread);
 
     // Remove "No chat history yet" message if it exists
     $('.no_chats').remove();
@@ -490,7 +490,7 @@ function createNewChatTab(userId, sendingToType, messageData, shouldShowUnread =
                 // Only show unread badge if specified AND message is from other user AND not from active chat
                 const unreadCount = (shouldShowUnread && !isSent && !isFromActiveChat) ? 1 : 0;
 
-                console.log('Creating new chat tab with unreadCount:', unreadCount);
+                // console.log('Creating new chat tab with unreadCount:', unreadCount);
 
                 const chatTabHtml = `
                     <div class="chat_tab inactive_chat_tab" data-userid="${user.id}" onclick="activateChat(this)">
@@ -682,7 +682,7 @@ function updateChatListOnlineStatus(userId, isOnline) {
 function refreshUnreadCount(userId) {
     // Skip if this is the currently active chat
     if (userId === sending_to) {
-        console.log('Skipping unread count refresh for active chat');
+        // console.log('Skipping unread count refresh for active chat');
         return;
     }
     

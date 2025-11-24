@@ -599,7 +599,7 @@ function markMessagesAsSeenInBackend(messageUids, senderId) {
             '_token': csrf_token
         },
         success: function (response) {
-            console.log('Messages marked as seen in database');
+            // console.log('Messages marked as seen in database');
         },
         error: function (xhr, status, error) {
             console.error('Error marking messages as seen:', error);
