@@ -319,7 +319,7 @@
     <script>
         document.addEventListener('DOMContentLoaded', function() {
             // Add any JavaScript functionality here if needed
-            console.log('Manage subscription page loaded');
+            // console.log('Manage subscription page loaded');
 
             // Example: Confirm subscription cancellation
             const cancelForms = document.querySelectorAll('form[action*="cancel-subscription"]');

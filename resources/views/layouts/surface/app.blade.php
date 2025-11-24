@@ -180,7 +180,7 @@
             const userType = document.querySelector('meta[name="user-type"]')?.content;
 
             if (!userId || !userType) {
-                console.log('No user authenticated, skipping WebSocket initialization');
+                // console.log('No user authenticated, skipping WebSocket initialization');
                 return;
             }
 
@@ -200,7 +200,7 @@
                     ws = new WebSocket(wsUrl);
 
                     ws.onopen = function() {
-                        console.log('🔔 Notification WebSocket connected');
+                        // console.log('🔔 Notification WebSocket connected');
                         isReconnecting = false;
                         clearInterval(reconnectInterval);
 
@@ -222,13 +222,13 @@
                     };
 
                     ws.onclose = function() {
-                        console.log('🔔 Notification WebSocket disconnected');
+                        // console.log('🔔 Notification WebSocket disconnected');
 
                         // Attempt to reconnect after 5 seconds
                         if (!isReconnecting) {
                             isReconnecting = true;
                             reconnectInterval = setInterval(function() {
-                                console.log('Attempting to reconnect notification WebSocket...');
+                                // console.log('Attempting to reconnect notification WebSocket...');
                                 initGlobalWebSocket();
                             }, 5000);
                         }
@@ -248,11 +248,11 @@
 
             // Handle incoming notification messages
             function handleNotificationMessage(data) {
-                console.log('🔔 Notification received:', data.type);
+                // console.log('🔔 Notification received:', data.type);
 
                 switch (data.type) {
                     case 'connected':
-                        console.log('Connected to notification server');
+                        // console.log('Connected to notification server');
                         break;
 
                     case 'new_message':
@@ -289,7 +289,7 @@
 
                 // Only increment if the message is FOR this user (not FROM this user)
                 if (receiverId === userId && senderId !== userId) {
-                    console.log('📨 New message received from:', senderId);
+                    // console.log('📨 New message received from:', senderId);
 
                     // Increment the badge
                     const badge = document.querySelector('.notification-badge');
@@ -340,7 +340,7 @@
                         
                         Notification.requestPermission().then(function(permission) {
                             if (permission === "granted") {
-                                console.log('Notification permission granted');
+                                // console.log('Notification permission granted');
                                 // Show any pending notifications
                                 pendingNotifications.forEach(createNotification);
                                 pendingNotifications = [];
