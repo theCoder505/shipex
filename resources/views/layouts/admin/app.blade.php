@@ -13,8 +13,8 @@
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
 
-    {{-- @vite('resources/css/app.css') --}}
-    <link rel="stylesheet" href="/assets/css/tailwind.css">
+    @vite('resources/css/app.css')
+    {{-- <link rel="stylesheet" href="/assets/css/tailwind.css"> --}}
     <link rel="stylesheet" href="/assets/css/admin.css">
     @yield('style')
     <title>ADMIN {{ $brandname }} — @yield('title')</title>

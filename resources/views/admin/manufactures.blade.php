@@ -100,6 +100,7 @@
                     <tr>
                         <th>#</th>
                         <th>UID</th>
+                        <th>Signup Process</th>
                         <th>Email</th>
                         <th>Reviews</th>
                         <th>Industry</th>
@@ -113,6 +114,11 @@
                         <tr>
                             <td>{{ $manufacturer->id }}</td>
                             <td>{{ $manufacturer->manufacturer_uid }}</td>
+                            <td>
+                                <span class="bg-teal-700 text-white rounded-full px-3 py-1 capitalize text-xs font-medium">
+                                    {{ $manufacturer->creation_with }}
+                                </span>
+                            </td>
                             <td>
                                 <a class="text-blue-500"
                                     href="mailto:{{ $manufacturer->email }}">{{ $manufacturer->email }}</a>
@@ -351,17 +357,17 @@
                     </div>
                 </div>
                 ${manufacturer.company_logo ? `
-                                    <div class="mt-4">
-                                        <p class="info-label mb-2">Company Logo</p>
-                                        <img src="/${manufacturer.company_logo}" alt="Company Logo" class="w-32 h-32 object-contain border rounded">
-                                    </div>
-                                ` : ''}
+                                            <div class="mt-4">
+                                                <p class="info-label mb-2">Company Logo</p>
+                                                <img src="/${manufacturer.company_logo}" alt="Company Logo" class="w-32 h-32 object-contain border rounded">
+                                            </div>
+                                        ` : ''}
                 ${manufacturer.business_introduction ? `
-                                    <div class="mt-4 info-item">
-                                        <p class="info-label">Business Introduction</p>
-                                        <p class="info-value">${manufacturer.business_introduction}</p>
-                                    </div>
-                                ` : ''}
+                                            <div class="mt-4 info-item">
+                                                <p class="info-label">Business Introduction</p>
+                                                <p class="info-value">${manufacturer.business_introduction}</p>
+                                            </div>
+                                        ` : ''}
             </div>
 
             <!-- Contact Information -->
@@ -412,18 +418,18 @@
                         <p class="info-value">${manufacturer.export_experience || 'N/A'}</p>
                     </div>
                     ${manufacturer.export_experience === 'yes' ? `
-                                        <div class="info-item">
-                                            <p class="info-label">Export Years</p>
-                                            <p class="info-value">${manufacturer.export_years || 'N/A'} years</p>
-                                        </div>
-                                    ` : ''}
+                                                <div class="info-item">
+                                                    <p class="info-label">Export Years</p>
+                                                    <p class="info-value">${manufacturer.export_years || 'N/A'} years</p>
+                                                </div>
+                                            ` : ''}
                 </div>
                 ${manufacturer.business_registration_license ? `
-                                    <div class="mt-4">
-                                        <p class="info-label mb-2">Business Registration License</p>
-                                        <a href="/${manufacturer.business_registration_license}" target="_blank" class="text-blue-600 hover:underline">View Document</a>
-                                    </div>
-                                ` : ''}
+                                            <div class="mt-4">
+                                                <p class="info-label mb-2">Business Registration License</p>
+                                                <a href="/${manufacturer.business_registration_license}" target="_blank" class="text-blue-600 hover:underline">View Document</a>
+                                            </div>
+                                        ` : ''}
             </div>
 
             <!-- Product Information -->
@@ -454,11 +460,11 @@
                     ${productsHtml}
                 </div>
                 ${manufacturer.catalogue ? `
-                                    <div class="mt-4">
-                                        <p class="info-label mb-2">Product Catalogue</p>
-                                        <a href="/${manufacturer.catalogue}" target="_blank" class="text-blue-600 hover:underline">View Catalogue</a>
-                                    </div>
-                                ` : ''}
+                                            <div class="mt-4">
+                                                <p class="info-label mb-2">Product Catalogue</p>
+                                                <a href="/${manufacturer.catalogue}" target="_blank" class="text-blue-600 hover:underline">View Catalogue</a>
+                                            </div>
+                                        ` : ''}
             </div>
 
             <!-- Certifications & Standards -->
@@ -476,11 +482,11 @@
                         <p class="info-value">${manufacturer.factory_audit_available || 'N/A'}</p>
                     </div>
                     ${manufacturer.standards && manufacturer.standards.length > 0 ? `
-                                        <div class="info-item">
-                                            <p class="info-label">Standards</p>
-                                            <p class="info-value">${manufacturer.standards.join(', ')}</p>
-                                        </div>
-                                    ` : ''}
+                                                <div class="info-item">
+                                                    <p class="info-label">Standards</p>
+                                                    <p class="info-value">${manufacturer.standards.join(', ')}</p>
+                                                </div>
+                                            ` : ''}
                 </div>
                 <div class="mt-4">
                     <p class="info-label mb-3">Certifications</p>
