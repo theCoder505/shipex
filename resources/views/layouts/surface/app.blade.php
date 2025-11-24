@@ -193,7 +193,7 @@
             function initGlobalWebSocket() {
                 if (isReconnecting) return;
 
-                const wsUrl = `ws://localhost:3000?userId=${userId}&userType=${userType}`;
+                const wsUrl = `wss://shipex.co.kr/ws?userId=${userId}&userType=${userType}`;
 
                 try {
                     ws = new WebSocket(wsUrl);
