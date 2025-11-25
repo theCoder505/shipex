@@ -96,7 +96,7 @@
                         <p class="text-gray-600 flex items-center gap-1 font-normal mt-2">
                             <img src="/assets/images/map-pin.png" alt="Location" class="h-4">
                             <span
-                                class="truncate max-w-[350px]">{{ $manufacturer->company_address_en ?? 'Location not specified' }}</span>
+                                class="truncate max-w-[220px] lg:max-w-[350px]">{{ $manufacturer->company_address_en ?? 'Location not specified' }}</span>
                         </p>
                         <p class="text-gray-600 flex items-center gap-1 font-normal mt-2">
                             <img src="/assets/images/star.png" alt="Rating" class="h-4 w-4">
