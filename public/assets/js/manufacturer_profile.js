@@ -5,8 +5,8 @@ document.addEventListener('DOMContentLoaded', function () {
 
     // File size limits (in bytes)
     const FILE_SIZE_LIMITS = {
-        single_file: 10 * 1024 * 1024, // 10MB per file
-        total_request: 250 * 1024 * 1024 // 250MB total
+        single_file: 5 * 1024 * 1024, // 10MB per file
+        total_request: 200 * 1024 * 1024 // 250MB total
     };
 
     // Track file sizes for validation
