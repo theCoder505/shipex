@@ -3,6 +3,23 @@ document.addEventListener('DOMContentLoaded', function () {
     const totalSteps = 6;
     const visibleSteps = 5;
 
+    // File size limits (in bytes)
+    const FILE_SIZE_LIMITS = {
+        single_file: 10 * 1024 * 1024, // 10MB per file
+        total_request: 250 * 1024 * 1024 // 250MB total
+    };
+
+    // Track file sizes for validation
+    const fileSizes = {
+        business_license: 0,
+        company_logo: 0,
+        catalogue: 0,
+        products: {},
+        certifications: {},
+        factory_pictures: {},
+        patents: {}
+    };
+
     // Dynamic counters - initialize based on existing items
     let productCount = document.querySelectorAll('.product-item').length || 1;
     let certificationCount = document.querySelectorAll('.certification-item').length || 1;
@@ -17,6 +34,87 @@ document.addEventListener('DOMContentLoaded', function () {
         factory_pictures: {},
         patents: {}
     };
+
+    // File size validation functions
+    function validateFileSize(file, inputName) {
+        if (file.size > FILE_SIZE_LIMITS.single_file) {
+            const fileSizeMB = (file.size / (1024 * 1024)).toFixed(2);
+            const limitMB = (FILE_SIZE_LIMITS.single_file / (1024 * 1024)).toFixed(2);
+            return {
+                valid: false,
+                message: `File "${file.name}" is ${fileSizeMB}MB. Maximum file size is ${limitMB}MB.`
+            };
+        }
+        return { valid: true };
+    }
+
+    function calculateTotalSize() {
+        let totalSize = 0;
+        
+        // Single files
+        totalSize += fileSizes.company_logo || 0;
+        totalSize += fileSizes.business_license || 0;
+        totalSize += fileSizes.catalogue || 0;
+        
+        // Array files
+        Object.values(fileSizes.products).forEach(size => totalSize += size || 0);
+        Object.values(fileSizes.certifications).forEach(size => totalSize += size || 0);
+        Object.values(fileSizes.factory_pictures).forEach(size => totalSize += size || 0);
+        Object.values(fileSizes.patents).forEach(size => totalSize += size || 0);
+        
+        return totalSize;
+    }
+
+    function validateTotalSize() {
+        const totalSize = calculateTotalSize();
+        if (totalSize > FILE_SIZE_LIMITS.total_request) {
+            const totalSizeMB = (totalSize / (1024 * 1024)).toFixed(2);
+            const limitMB = (FILE_SIZE_LIMITS.total_request / (1024 * 1024)).toFixed(2);
+            return {
+                valid: false,
+                message: `Total upload size ${totalSizeMB}MB exceeds maximum limit of ${limitMB}MB. Please remove some files.`
+            };
+        }
+        return { valid: true };
+    }
+
+    function showFileSizeError(message) {
+        if (typeof Swal !== 'undefined') {
+            Swal.fire({
+                icon: 'error',
+                title: 'File Too Large',
+                html: message,
+                timer: 6000,
+                showConfirmButton: true
+            });
+        } else {
+            alert(message);
+        }
+    }
+
+    function showTotalSizeError(message) {
+        if (typeof Swal !== 'undefined') {
+            Swal.fire({
+                icon: 'error',
+                title: 'Upload Limit Exceeded',
+                html: message,
+                timer: 8000,
+                showConfirmButton: true
+            });
+        } else {
+            alert(message);
+        }
+    }
+
+    function updateFileSizeDisplay(input, file) {
+        const fileSizeMB = (file.size / (1024 * 1024)).toFixed(2);
+        const fileNameElement = input.closest('.file-upload-area').querySelector('.file-name');
+        if (fileNameElement) {
+            // Add file size to display
+            const originalText = fileNameElement.textContent;
+            fileNameElement.innerHTML = `${file.name} <span class="text-xs ${file.size > FILE_SIZE_LIMITS.single_file ? 'text-red-600' : 'text-green-600'}">(${fileSizeMB}MB)</span>`;
+        }
+    }
 
     // Initialize file previews from existing data
     function initializeExistingPreviews() {
@@ -386,8 +484,40 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     function handleFileSelect(file, input, fileNameElement, previewElement, area) {
-        if (file && fileNameElement) {
-            fileNameElement.textContent = file.name;
+        if (file) {
+            // Validate file size
+            const sizeValidation = validateFileSize(file, input.name);
+            if (!sizeValidation.valid) {
+                showFileSizeError(sizeValidation.message);
+                input.value = ''; // Clear the input
+                if (fileNameElement) fileNameElement.textContent = '';
+                if (previewElement) previewElement.style.display = 'none';
+                area.classList.remove('has-image');
+                const placeholder = area.querySelector('.upload-placeholder');
+                if (placeholder) placeholder.style.display = 'block';
+                removeFileSize(input.name);
+                return;
+            }
+
+            // Update file size tracking
+            updateFileSizeTracking(input.name, file.size);
+
+            // Validate total size
+            const totalValidation = validateTotalSize();
+            if (!totalValidation.valid) {
+                showTotalSizeError(totalValidation.message);
+                input.value = ''; // Clear the input
+                if (fileNameElement) fileNameElement.textContent = '';
+                if (previewElement) previewElement.style.display = 'none';
+                area.classList.remove('has-image');
+                const placeholder = area.querySelector('.upload-placeholder');
+                if (placeholder) placeholder.style.display = 'block';
+                removeFileSize(input.name);
+                return;
+            }
+
+            // Update display with file size
+            updateFileSizeDisplay(input, file);
 
             if (file.type.startsWith('image/')) {
                 const reader = new FileReader();
@@ -407,6 +537,66 @@ document.addEventListener('DOMContentLoaded', function () {
             } else {
                 area.classList.remove('has-image');
                 storeFilePreview(input, null);
+            }
+        }
+    }
+
+    function updateFileSizeTracking(inputName, fileSize) {
+        if (inputName === 'company_logo') {
+            fileSizes.company_logo = fileSize;
+        } else if (inputName === 'business_registration_license') {
+            fileSizes.business_license = fileSize;
+        } else if (inputName === 'catalogue') {
+            fileSizes.catalogue = fileSize;
+        } else if (inputName.startsWith('products[') && inputName.endsWith('[image]')) {
+            const match = inputName.match(/products\[(\d+)\]\[image\]/);
+            if (match) {
+                fileSizes.products[match[1]] = fileSize;
+            }
+        } else if (inputName.startsWith('certifications[') && inputName.endsWith('[document]')) {
+            const match = inputName.match(/certifications\[(\d+)\]\[document\]/);
+            if (match) {
+                fileSizes.certifications[match[1]] = fileSize;
+            }
+        } else if (inputName.startsWith('factory_pictures[') && inputName.endsWith('[image]')) {
+            const match = inputName.match(/factory_pictures\[(\d+)\]\[image\]/);
+            if (match) {
+                fileSizes.factory_pictures[match[1]] = fileSize;
+            }
+        } else if (inputName.startsWith('patents[') && inputName.endsWith('[document]')) {
+            const match = inputName.match(/patents\[(\d+)\]\[document\]/);
+            if (match) {
+                fileSizes.patents[match[1]] = fileSize;
+            }
+        }
+    }
+
+    function removeFileSize(inputName) {
+        if (inputName === 'company_logo') {
+            fileSizes.company_logo = 0;
+        } else if (inputName === 'business_registration_license') {
+            fileSizes.business_license = 0;
+        } else if (inputName === 'catalogue') {
+            fileSizes.catalogue = 0;
+        } else if (inputName.startsWith('products[') && inputName.endsWith('[image]')) {
+            const match = inputName.match(/products\[(\d+)\]\[image\]/);
+            if (match) {
+                delete fileSizes.products[match[1]];
+            }
+        } else if (inputName.startsWith('certifications[') && inputName.endsWith('[document]')) {
+            const match = inputName.match(/certifications\[(\d+)\]\[document\]/);
+            if (match) {
+                delete fileSizes.certifications[match[1]];
+            }
+        } else if (inputName.startsWith('factory_pictures[') && inputName.endsWith('[image]')) {
+            const match = inputName.match(/factory_pictures\[(\d+)\]\[image\]/);
+            if (match) {
+                delete fileSizes.factory_pictures[match[1]];
+            }
+        } else if (inputName.startsWith('patents[') && inputName.endsWith('[document]')) {
+            const match = inputName.match(/patents\[(\d+)\]\[document\]/);
+            if (match) {
+                delete fileSizes.patents[match[1]];
             }
         }
     }
@@ -654,6 +844,7 @@ document.addEventListener('DOMContentLoaded', function () {
             if (productItem) {
                 const index = Array.from(document.querySelectorAll('.product-item')).indexOf(productItem);
                 delete filePreviews.products[index];
+                removeFileSize(`products[${index}][image]`);
                 productItem.remove();
                 productCount = Math.max(1, productCount - 1);
                 renumberItems('.product-item');
@@ -720,6 +911,7 @@ document.addEventListener('DOMContentLoaded', function () {
             if (certItem) {
                 const index = Array.from(document.querySelectorAll('.certification-item')).indexOf(certItem);
                 delete filePreviews.certifications[index];
+                removeFileSize(`certifications[${index}][document]`);
                 certItem.remove();
                 certificationCount = Math.max(1, certificationCount - 1);
                 renumberItems('.certification-item');
@@ -802,6 +994,7 @@ document.addEventListener('DOMContentLoaded', function () {
             if (pictureItem) {
                 const index = Array.from(document.querySelectorAll('.factory-picture-item')).indexOf(pictureItem);
                 delete filePreviews.factory_pictures[index];
+                removeFileSize(`factory_pictures[${index}][image]`);
                 pictureItem.remove();
                 factoryPictureCount = Math.max(1, factoryPictureCount - 1);
                 renumberItems('.factory-picture-item');
@@ -866,6 +1059,7 @@ document.addEventListener('DOMContentLoaded', function () {
             if (patentItem) {
                 const index = Array.from(document.querySelectorAll('.patents-item')).indexOf(patentItem);
                 delete filePreviews.patents[index];
+                removeFileSize(`patents[${index}][document]`);
                 patentItem.remove();
                 patentCount = Math.max(1, patentCount - 1);
                 renumberItems('.patents-item');
@@ -883,10 +1077,18 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 
-    // Form submission
+    // Form submission with final validation
     const profileForm = document.getElementById('profileForm');
     if (profileForm) {
         profileForm.addEventListener('submit', function (e) {
+            // Final file size validation before submission
+            const totalValidation = validateTotalSize();
+            if (!totalValidation.valid) {
+                e.preventDefault();
+                showTotalSizeError(totalValidation.message);
+                return;
+            }
+
             const submitBtn = this.querySelector('button[type="submit"]');
             if (submitBtn) {
                 submitBtn.classList.add('btn-loading');
@@ -895,7 +1097,6 @@ document.addEventListener('DOMContentLoaded', function () {
             }
         });
     }
-
 
     // Initialize everything
     initializeExistingPreviews();
@@ -914,6 +1115,5 @@ document.addEventListener('DOMContentLoaded', function () {
         checkedPatentsRadio.dispatchEvent(new Event('change'));
     }
 });
-
 
 
