@@ -5,8 +5,8 @@ document.addEventListener('DOMContentLoaded', function () {
 
     // File size limits (in bytes)
     const FILE_SIZE_LIMITS = {
-        single_file: 5 * 1024 * 1024, // 10MB per file
-        total_request: 200 * 1024 * 1024 // 250MB total
+        single_file: 5 * 1024 * 1024, // 5MB per file
+        total_request: 200 * 1024 * 1024 // 200MB total
     };
 
     // Track file sizes for validation
@@ -116,18 +116,89 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     }
 
+    // Data persistence functions
+    function storeCurrentStepData(step) {
+        const stepElement = document.querySelector(`.step-content[data-step="${step}"]`);
+        if (!stepElement) return;
+
+        // Store all input values in sessionStorage
+        const inputs = stepElement.querySelectorAll('input, select, textarea');
+        inputs.forEach(input => {
+            const key = `step_${step}_${input.name}`;
+            
+            if (input.type === 'file') {
+                // For file inputs, we can't store the file, but we can track if it was set
+                if (input.files.length > 0) {
+                    sessionStorage.setItem(key, 'file_selected');
+                } else if (input.hasAttribute('data-has-existing-file')) {
+                    sessionStorage.setItem(key, 'has_existing_file');
+                }
+            } else if (input.type === 'checkbox' || input.type === 'radio') {
+                sessionStorage.setItem(key, input.checked);
+            } else {
+                sessionStorage.setItem(key, input.value);
+            }
+        });
+    }
+
+    function restoreStepData(step) {
+        const stepElement = document.querySelector(`.step-content[data-step="${step}"]`);
+        if (!stepElement) return;
+
+        const inputs = stepElement.querySelectorAll('input, select, textarea');
+        inputs.forEach(input => {
+            const key = `step_${step}_${input.name}`;
+            const storedValue = sessionStorage.getItem(key);
+            
+            if (storedValue !== null) {
+                if (input.type === 'file') {
+                    // Can't restore file inputs, but we can update the UI state
+                    if (storedValue === 'file_selected') {
+                        input.setAttribute('data-has-file', 'true');
+                    } else if (storedValue === 'has_existing_file') {
+                        input.setAttribute('data-has-existing-file', 'true');
+                    }
+                } else if (input.type === 'checkbox' || input.type === 'radio') {
+                    input.checked = storedValue === 'true';
+                    // Trigger change event for dependent fields
+                    input.dispatchEvent(new Event('change', { bubbles: true }));
+                } else {
+                    input.value = storedValue;
+                }
+                
+                // Trigger change event for dependent fields
+                if (input.type !== 'file') {
+                    input.dispatchEvent(new Event('change', { bubbles: true }));
+                    input.dispatchEvent(new Event('input', { bubbles: true }));
+                }
+            }
+        });
+
+        // Re-initialize file upload areas for this step
+        initializeFileUploadsForStep(step);
+    }
+
+    function initializeFileUploadsForStep(step) {
+        const stepElement = document.querySelector(`.step-content[data-step="${step}"]`);
+        if (stepElement) {
+            stepElement.querySelectorAll('.file-upload-area').forEach(area => {
+                initializeSingleFileUpload(area);
+            });
+        }
+    }
+
     // Initialize file previews from existing data
     function initializeExistingPreviews() {
         // Business License
         const businessLicenseImg = document.querySelector('[data-upload="business_license"] .file-preview');
-        if (businessLicenseImg && businessLicenseImg.src && businessLicenseImg.style.display !== 'none') {
+        if (businessLicenseImg && businessLicenseImg.src && !businessLicenseImg.src.includes('data:') && businessLicenseImg.style.display !== 'none') {
             filePreviews.business_license = businessLicenseImg.src;
         }
 
         // Products
         document.querySelectorAll('.product-item').forEach((item, index) => {
             const preview = item.querySelector('.file-preview');
-            if (preview && preview.src && preview.style.display !== 'none') {
+            if (preview && preview.src && !preview.src.includes('data:') && preview.style.display !== 'none') {
                 filePreviews.products[index] = preview.src;
             }
         });
@@ -135,7 +206,7 @@ document.addEventListener('DOMContentLoaded', function () {
         // Certifications
         document.querySelectorAll('.certification-item').forEach((item, index) => {
             const preview = item.querySelector('.file-preview');
-            if (preview && preview.src && preview.style.display !== 'none') {
+            if (preview && preview.src && !preview.src.includes('data:') && preview.style.display !== 'none') {
                 filePreviews.certifications[index] = preview.src;
             }
         });
@@ -143,7 +214,7 @@ document.addEventListener('DOMContentLoaded', function () {
         // Factory Pictures
         document.querySelectorAll('.factory-picture-item').forEach((item, index) => {
             const preview = item.querySelector('.file-preview');
-            if (preview && preview.src && preview.style.display !== 'none') {
+            if (preview && preview.src && !preview.src.includes('data:') && preview.style.display !== 'none') {
                 filePreviews.factory_pictures[index] = preview.src;
             }
         });
@@ -151,7 +222,7 @@ document.addEventListener('DOMContentLoaded', function () {
         // Patents
         document.querySelectorAll('.patents-item').forEach((item, index) => {
             const preview = item.querySelector('.file-preview');
-            if (preview && preview.src && preview.style.display !== 'none') {
+            if (preview && preview.src && !preview.src.includes('data:') && preview.style.display !== 'none') {
                 filePreviews.patents[index] = preview.src;
             }
         });
@@ -207,6 +278,9 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     function showStep(step) {
+        // Store current step data before switching
+        storeCurrentStepData(currentStep);
+        
         document.querySelectorAll('.step-content').forEach(content => {
             content.classList.remove('active');
         });
@@ -225,6 +299,9 @@ document.addEventListener('DOMContentLoaded', function () {
         }
 
         updateMobileStepIndicator();
+
+        // Restore data for the new step
+        setTimeout(() => restoreStepData(step), 50);
 
         window.scrollTo({
             top: 0,
@@ -438,15 +515,15 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     }
 
-    function initializeFileUploads() {
-        document.querySelectorAll('.file-upload-area').forEach(area => {
-            const input = area.querySelector('input[type="file"]');
-            const fileName = area.querySelector('.file-name');
-            const preview = area.querySelector('.file-preview');
+    function initializeSingleFileUpload(area) {
+        const input = area.querySelector('input[type="file"]');
+        const fileName = area.querySelector('.file-name');
+        const preview = area.querySelector('.file-preview');
 
-            if (!input) return;
+        if (!input) return;
 
-            // Remove existing listeners by cloning
+        // Remove existing listeners by cloning and replacing
+        if (!area.hasAttribute('data-initialized')) {
             const newArea = area.cloneNode(true);
             area.parentNode.replaceChild(newArea, area);
 
@@ -454,8 +531,15 @@ document.addEventListener('DOMContentLoaded', function () {
             const newInput = newArea.querySelector('input[type="file"]');
             const newFileName = newArea.querySelector('.file-name');
             const newPreview = newArea.querySelector('.file-preview');
+            const placeholder = newArea.querySelector('.upload-placeholder');
 
-            newArea.addEventListener('click', () => newInput.click());
+            newArea.setAttribute('data-initialized', 'true');
+
+            newArea.addEventListener('click', (e) => {
+                if (!e.target.closest('.remove-file-btn')) {
+                    newInput.click();
+                }
+            });
 
             newArea.addEventListener('dragover', (e) => {
                 e.preventDefault();
@@ -471,19 +555,32 @@ document.addEventListener('DOMContentLoaded', function () {
                 newArea.classList.remove('dragover');
                 if (e.dataTransfer.files.length) {
                     newInput.files = e.dataTransfer.files;
-                    handleFileSelect(newInput.files[0], newInput, newFileName, newPreview, newArea);
+                    handleFileSelect(newInput.files[0], newInput, newFileName, newPreview, newArea, placeholder);
                 }
             });
 
             newInput.addEventListener('change', () => {
                 if (newInput.files.length) {
-                    handleFileSelect(newInput.files[0], newInput, newFileName, newPreview, newArea);
+                    handleFileSelect(newInput.files[0], newInput, newFileName, newPreview, newArea, placeholder);
                 }
             });
+
+            // Check if there's an existing file from server
+            if (newArea.classList.contains('has-image') && newPreview.src && !newPreview.src.includes('data:')) {
+                newInput.setAttribute('data-has-existing-file', 'true');
+                if (placeholder) placeholder.style.display = 'none';
+                newPreview.style.display = 'block';
+            }
+        }
+    }
+
+    function initializeFileUploads() {
+        document.querySelectorAll('.file-upload-area').forEach(area => {
+            initializeSingleFileUpload(area);
         });
     }
 
-    function handleFileSelect(file, input, fileNameElement, previewElement, area) {
+    function handleFileSelect(file, input, fileNameElement, previewElement, area, placeholder) {
         if (file) {
             // Validate file size
             const sizeValidation = validateFileSize(file, input.name);
@@ -493,7 +590,6 @@ document.addEventListener('DOMContentLoaded', function () {
                 if (fileNameElement) fileNameElement.textContent = '';
                 if (previewElement) previewElement.style.display = 'none';
                 area.classList.remove('has-image');
-                const placeholder = area.querySelector('.upload-placeholder');
                 if (placeholder) placeholder.style.display = 'block';
                 removeFileSize(input.name);
                 return;
@@ -510,7 +606,6 @@ document.addEventListener('DOMContentLoaded', function () {
                 if (fileNameElement) fileNameElement.textContent = '';
                 if (previewElement) previewElement.style.display = 'none';
                 area.classList.remove('has-image');
-                const placeholder = area.querySelector('.upload-placeholder');
                 if (placeholder) placeholder.style.display = 'block';
                 removeFileSize(input.name);
                 return;
@@ -526,7 +621,6 @@ document.addEventListener('DOMContentLoaded', function () {
                         previewElement.src = e.target.result;
                         previewElement.style.display = 'block';
                         area.classList.add('has-image');
-                        const placeholder = area.querySelector('.upload-placeholder');
                         if (placeholder) {
                             placeholder.style.display = 'none';
                         }
@@ -535,9 +629,16 @@ document.addEventListener('DOMContentLoaded', function () {
                 };
                 reader.readAsDataURL(file);
             } else {
-                area.classList.remove('has-image');
+                // For non-image files, still mark as having file
+                area.classList.add('has-image');
+                if (previewElement) previewElement.style.display = 'none';
+                if (placeholder) placeholder.style.display = 'none';
                 storeFilePreview(input, null);
             }
+
+            // Mark input as having file
+            input.setAttribute('data-has-file', 'true');
+            input.removeAttribute('data-has-existing-file');
         }
     }
 
@@ -643,6 +744,9 @@ document.addEventListener('DOMContentLoaded', function () {
                 fieldValid = Array.from(radioGroup).some(radio => radio.checked);
             } else if (field.type === 'checkbox') {
                 fieldValid = field.checked;
+            } else if (field.type === 'file') {
+                // Check if file is selected or has existing file
+                fieldValid = field.files.length > 0 || field.hasAttribute('data-has-existing-file') || field.hasAttribute('data-has-file');
             } else {
                 fieldValid = field.value.trim() !== '';
             }
@@ -659,6 +763,30 @@ document.addEventListener('DOMContentLoaded', function () {
         return { isValid, invalidFields };
     }
 
+    // Safari-specific fixes
+    function initializeSafariFileHandling() {
+        // Safari has issues with file input change events
+        if (/^((?!chrome|android).)*safari/i.test(navigator.userAgent)) {
+            document.querySelectorAll('input[type="file"]').forEach(input => {
+                input.addEventListener('change', function(e) {
+                    // Force a re-render of the file preview
+                    const area = this.closest('.file-upload-area');
+                    if (area && this.files.length > 0) {
+                        // Mark that this file input has a file for validation
+                        this.setAttribute('data-has-file', 'true');
+                        this.removeAttribute('data-has-existing-file');
+                        
+                        // Trigger your existing file handling
+                        const fileNameElement = area.querySelector('.file-name');
+                        const previewElement = area.querySelector('.file-preview');
+                        const placeholder = area.querySelector('.upload-placeholder');
+                        handleFileSelect(this.files[0], this, fileNameElement, previewElement, area, placeholder);
+                    }
+                });
+            });
+        }
+    }
+
     // Next button handlers
     document.querySelectorAll('.next-btn').forEach(btn => {
         btn.addEventListener('click', function () {
@@ -668,6 +796,7 @@ document.addEventListener('DOMContentLoaded', function () {
             const validation = validateStep(currentStepElement);
 
             if (validation.isValid && parseInt(currentStep) < totalSteps) {
+                storeCurrentStepData(currentStep);
                 showStep(parseInt(currentStep) + 1);
             } else if (!validation.isValid) {
                 if (typeof Swal !== 'undefined') {
@@ -694,7 +823,9 @@ document.addEventListener('DOMContentLoaded', function () {
     document.querySelectorAll('.prev-btn').forEach(btn => {
         btn.addEventListener('click', function () {
             if (parseInt(currentStep) > 1) {
-                showStep(parseInt(currentStep) - 1);
+                storeCurrentStepData(currentStep);
+                const prevStep = parseInt(currentStep) - 1;
+                showStep(prevStep);
             }
         });
     });
@@ -705,6 +836,7 @@ document.addEventListener('DOMContentLoaded', function () {
             const editBtn = e.target.closest('.edit-btn');
             const stepToEdit = parseInt(editBtn.getAttribute('data-step'));
             if (!isNaN(stepToEdit)) {
+                storeCurrentStepData(currentStep);
                 showStep(stepToEdit);
             }
         }
@@ -1077,32 +1209,141 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 
-    // Form submission with final validation
+    // Form submission with final validation - Safari compatible
     const profileForm = document.getElementById('profileForm');
     if (profileForm) {
         profileForm.addEventListener('submit', function (e) {
-            // Final file size validation before submission
-            const totalValidation = validateTotalSize();
-            if (!totalValidation.valid) {
-                e.preventDefault();
-                showTotalSizeError(totalValidation.message);
-                return;
-            }
-
+            // Store the original submit button state
             const submitBtn = this.querySelector('button[type="submit"]');
-            if (submitBtn) {
-                submitBtn.classList.add('btn-loading');
-                submitBtn.innerHTML = '<span class="loading-spinner"></span> Submitting...';
-                submitBtn.disabled = true;
+            const originalHtml = submitBtn ? submitBtn.innerHTML : '';
+            const originalDisabled = submitBtn ? submitBtn.disabled : false;
+
+            try {
+                // Final file size validation before submission
+                const totalValidation = validateTotalSize();
+                if (!totalValidation.valid) {
+                    e.preventDefault();
+                    showTotalSizeError(totalValidation.message);
+                    return;
+                }
+
+                // For Safari, we need to ensure all required fields are filled
+                const requiredFields = this.querySelectorAll('[required]');
+                let allRequiredFilled = true;
+                const missingFields = [];
+
+                requiredFields.forEach(field => {
+                    let fieldValid = false;
+
+                    if (field.type === 'radio') {
+                        const radioGroup = this.querySelectorAll(`input[name="${field.name}"]`);
+                        fieldValid = Array.from(radioGroup).some(radio => radio.checked);
+                    } else if (field.type === 'checkbox') {
+                        fieldValid = field.checked;
+                    } else if (field.type === 'file') {
+                        fieldValid = field.files.length > 0 || field.hasAttribute('data-has-existing-file') || field.hasAttribute('data-has-file');
+                    } else {
+                        fieldValid = field.value.trim() !== '';
+                    }
+
+                    if (!fieldValid) {
+                        allRequiredFilled = false;
+                        missingFields.push(field);
+                    }
+                });
+
+                if (!allRequiredFilled) {
+                    e.preventDefault();
+                    if (typeof Swal !== 'undefined') {
+                        Swal.fire({
+                            icon: 'error',
+                            title: 'Missing Required Fields',
+                            text: 'Please fill in all required fields before submitting',
+                            timer: 5000,
+                            showConfirmButton: true
+                        });
+                    } else {
+                        alert('Please fill in all required fields before submitting');
+                    }
+                    
+                    // Scroll to first missing field
+                    if (missingFields.length > 0) {
+                        missingFields[0].scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    }
+                    return;
+                }
+
+                // Update UI to show loading state
+                if (submitBtn) {
+                    submitBtn.classList.add('btn-loading');
+                    submitBtn.innerHTML = '<span class="loading-spinner"></span> Submitting...';
+                    submitBtn.disabled = true;
+                }
+
+                // Allow the form to submit naturally in Safari
+                // Don't prevent default unless validation fails
+                
+            } catch (error) {
+                console.error('Form submission error:', error);
+                // Restore button state on error
+                if (submitBtn) {
+                    submitBtn.classList.remove('btn-loading');
+                    submitBtn.innerHTML = originalHtml;
+                    submitBtn.disabled = originalDisabled;
+                }
+                
+                if (typeof Swal !== 'undefined') {
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Submission Error',
+                        text: 'There was an error submitting the form. Please try again.',
+                        timer: 5000,
+                        showConfirmButton: true
+                    });
+                } else {
+                    alert('There was an error submitting the form. Please try again.');
+                }
             }
         });
     }
+
+    // Add CSS for loading spinner
+    const style = document.createElement('style');
+    style.textContent = `
+        .btn-loading {
+            position: relative;
+            pointer-events: none;
+        }
+        .loading-spinner {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 2px solid #ffffff;
+            border-radius: 50%;
+            border-top-color: transparent;
+            animation: spin 1s ease-in-out infinite;
+            margin-right: 8px;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+    `;
+    document.head.appendChild(style);
 
     // Initialize everything
     initializeExistingPreviews();
     updateStepProgress();
     updateMobileStepIndicator();
     initializeFileUploads();
+    initializeSafariFileHandling();
+
+    // Mark file inputs that already have files from server
+    document.querySelectorAll('.file-upload-area.has-image').forEach(area => {
+        const input = area.querySelector('input[type="file"]');
+        if (input) {
+            input.setAttribute('data-has-existing-file', 'true');
+        }
+    });
 
     // Trigger initial state for conditional fields
     const checkedExportRadio = document.querySelector('input[name="export_experience"]:checked');
@@ -1114,6 +1355,7 @@ document.addEventListener('DOMContentLoaded', function () {
     if (checkedPatentsRadio) {
         checkedPatentsRadio.dispatchEvent(new Event('change'));
     }
+
+    // Clear session storage on page load to start fresh
+    sessionStorage.clear();
 });
-
-
