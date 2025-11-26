@@ -74,6 +74,7 @@ class MenufacturerCredentialsController extends Controller
                 'email' => $email,
                 'password' => bcrypt($password),
                 'otp' => $otp,
+                'creation_with' => 'general',
             ]);
         }
 
