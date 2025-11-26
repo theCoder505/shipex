@@ -403,6 +403,30 @@
                     @endif
                 </ul>
 
+                <div class="language_section">
+                    <div class="flex gap-2 items-center flex-wrap">
+                        <div class="flex gap-2 items-center">
+                            <i class="fas fa-globe h-4"></i>
+                            <span class="text-[#46484D] dark:text-gray-300 font-medium">Languages:</span>
+                        </div>
+                        @if ($spec_manufacturer->language)
+                            @php
+                                $languages = explode(',', $spec_manufacturer->language);
+                                $languages = array_map('trim', $languages); // Remove whitespace
+                                $languages = array_map('ucfirst', $languages); // Capitalize first letter
+                            @endphp
+                            @foreach ($languages as $language)
+                                <span
+                                    class="bg-[#f6f6f6] dark:bg-gray-700 text-[#46484d] dark:text-gray-300 rounded-full font-normal text-sm px-3 py-1">
+                                    {{ $language }}
+                                </span>
+                            @endforeach
+                        @else
+                            <span class="text-[#46484D] dark:text-gray-300 text-sm">No languages listed</span>
+                        @endif
+                    </div>
+                </div>
+
                 @if (Auth::guard('wholesaler')->check())
                     <div class="mt-12">
                         <a href="/wholesaler/chats/{{ $manufacturer_uid }}"

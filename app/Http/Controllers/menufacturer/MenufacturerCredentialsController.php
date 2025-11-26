@@ -431,13 +431,26 @@ class MenufacturerCredentialsController extends Controller
 
     public function changeLanguageChoice(Request $request)
     {
-        $manufacturer_uid = Auth::guard('manufacturer')->user()->manufacturer_uid;
-        $update = Manufacturer::where('manufacturer_uid', $manufacturer_uid)->update([
-            'language' => $request['language']
+        $request->validate([
+            'languages' => 'required|array|min:1',
+            'languages.*' => 'string'
         ]);
-        return redirect()->back()->with('success', 'Your default language has been changed successfully');
-    }
 
+        $manufacturer_uid = Auth::guard('manufacturer')->user()->manufacturer_uid;
+
+        // Join selected languages with comma
+        $languagesString = implode(', ', $request->languages);
+
+        $update = Manufacturer::where('manufacturer_uid', $manufacturer_uid)->update([
+            'language' => $languagesString
+        ]);
+
+        if ($update) {
+            return redirect()->back()->with('success', 'Your preferred languages have been updated successfully');
+        }
+
+        return redirect()->back()->with('error', 'Failed to update languages');
+    }
 
 
 

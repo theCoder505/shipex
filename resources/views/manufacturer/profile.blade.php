@@ -4,6 +4,154 @@
 
 @section('style')
     <link rel="stylesheet" href="/assets/css/manufacturer_profile.css">
+    <style>
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 3px;
+        }
+
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #c1c1c1;
+            border-radius: 3px;
+        }
+
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: #a8a8a8;
+        }
+
+        .language-option {
+            padding: 12px 16px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .language-option:hover {
+            background-color: #f9fafb;
+        }
+
+        .language-option.selected {
+            background-color: #eff6ff;
+            border-left: 3px solid #3b82f6;
+        }
+
+        .language-checkbox {
+            width: 18px;
+            height: 18px;
+            border: 2px solid #d1d5db;
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+            flex-shrink: 0;
+        }
+
+        .language-option.selected .language-checkbox {
+            background-color: #3b82f6;
+            border-color: #3b82f6;
+        }
+
+        .language-option.selected .language-checkbox::after {
+            content: "✓";
+            color: white;
+            font-size: 12px;
+            font-weight: bold;
+        }
+
+        .language-tag {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            background-color: #eff6ff;
+            color: #1e40af;
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 14px;
+            font-weight: 500;
+        }
+
+        .language-tag-remove {
+            cursor: pointer;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background-color: #dbeafe;
+            transition: background-color 0.2s;
+            font-size: 10px;
+        }
+
+        .language-tag-remove:hover {
+            background-color: #bfdbfe;
+        }
+
+        .language-search-container {
+            position: relative;
+            margin-bottom: 12px;
+            max-width: 400px;
+        }
+
+        .language-search-icon {
+            position: absolute;
+            left: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #9ca3af;
+        }
+
+        .language-search-input {
+            width: 100%;
+            padding: 10px 12px 10px 36px;
+            border: 1px solid #d1d5db;
+            border-radius: 8px;
+            font-size: 14px;
+        }
+
+        .language-search-input:focus {
+            outline: none;
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+        }
+
+        .language-options-container {
+            border: 1px solid #d1d5db;
+            border-radius: 8px;
+            overflow: hidden;
+            max-width: 400px;
+            max-height: 280px;
+            overflow-y: auto;
+        }
+
+        .no-languages-message {
+            color: #9ca3af;
+            font-style: italic;
+            padding: 8px 0;
+        }
+
+        .selected-languages-section {
+            background-color: #f9fafb;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            padding: 16px;
+        }
+
+        .selected-count {
+            background-color: white;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 12px;
+            color: #6b7280;
+        }
+    </style>
 @endsection
 
 @section('content')
@@ -17,18 +165,21 @@
                 @php $status = $profile_data->status ?? null; @endphp
 
                 @if ($status == 1)
-                    <button type="button" class="px-4 py-2 rounded-full border border-yellow-300 bg-yellow-50 text-yellow-800 text-sm"
-                        disabled title="Your profile is pending admin approval">
+                    <button type="button"
+                        class="px-4 py-2 rounded-full border border-yellow-300 bg-yellow-50 text-yellow-800 text-sm" disabled
+                        title="Your profile is pending admin approval">
                         Waiting Admin Approval
                     </button>
                 @elseif ($status == 3)
-                    <button type="button" class="px-4 py-2 rounded-full border border-red-300 bg-red-50 text-red-700 text-sm" disabled
+                    <button type="button"
+                        class="px-4 py-2 rounded-full border border-red-300 bg-red-50 text-red-700 text-sm" disabled
                         title="Your application was rejected">
                         Rejected Application
                     </button>
                 @elseif ($status == 5)
-                    <button type="button" class="px-4 py-2 rounded-full border border-green-300 bg-green-50 text-green-800 text-sm"
-                        disabled title="Your profile has been approved">
+                    <button type="button"
+                        class="px-4 py-2 rounded-full border border-green-300 bg-green-50 text-green-800 text-sm" disabled
+                        title="Your profile has been approved">
                         Approved Profile
                     </button>
                 @else
@@ -413,11 +564,23 @@
                     </div>
                     <div class="flex justify-between gap-4 py-6 border-b border-[#BCBCBC]">
                         <div class="left">
-                            <p class="text-xs">Default language</p>
-                            <p class="text-lg text-[#121212] capitalize">{{ $profile_data->language }}</p>
+                            <p class="text-xs">Preferred Languages</p>
+                            <p class="text-lg text-[#121212]">
+                                @if ($profile_data->language)
+                                    @php
+                                        $languages = explode(',', $profile_data->language);
+                                        $formattedLangs = array_map(function ($lang) {
+                                            return ucfirst(trim($lang));
+                                        }, $languages);
+                                    @endphp
+                                    {{ implode(', ', $formattedLangs) }}
+                                @else
+                                    Not set
+                                @endif
+                            </p>
                         </div>
                         <div class="right">
-                            <button class="edit-btn" onclick="editLangModal(this)">
+                            <button class="edit-btn" onclick="editLangModal()">
                                 <svg class="w-4 h-4 inline mr-1" fill="none" stroke="currentColor"
                                     viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
@@ -527,31 +690,51 @@
 
 
     <div id="EditLangChange" class="modal-overlay">
-        <div class="modal-content filter_content">
-            <img src="/assets/images/cross.png" alt="Close" class="modal-close" onclick="closeEditLangChange()">
-            <div class="filter_text text-center py-4 text-lg lg:text-[32px] border-b border-[#BCBCBC]">
-                Editing your default language
+        <div class="modal-content filter_content max-w-2xl">
+            <div class="flex justify-between items-center border-b border-[#BCBCBC] pb-4 px-6">
+                <h2 class="text-xl lg:text-2xl font-semibold text-gray-800">Edit Preferred Languages</h2>
+                <button type="button" class="text-gray-500 hover:text-gray-700 transition-colors"
+                    onclick="closeEditLangChange()">
+                    <img src="/assets/images/cross.png" alt="Close" class="w-5 h-5">
+                </button>
             </div>
 
             <form action="/manufacturer/change-language-selection" method="post">
                 @csrf
 
-                <div class="py-10 px-6 grid gap-6">
-                    <div class="rounded-lg p-4 flex gap-2 bg-[#DEEFFF] lg:w-[400px]">
-                        <i class="fa fa-info-circle text-[#0B45B9]"></i>
-                        <p class="text-[#0B45B9]">
-                            This information will allow AI to automatically translate conversations into your default
-                            language. It won't change the language of the interface.
+                <div class="py-6 px-6 space-y-6">
+                    <!-- Info Box -->
+                    <div class="rounded-lg p-4 flex gap-3 bg-blue-50 border border-blue-100">
+                        <i class="fa fa-info-circle text-blue-500 mt-1 flex-shrink-0"></i>
+                        <p class="text-blue-700 text-sm">
+                            Select one or more languages. AI will automatically translate conversations into your preferred
+                            languages. This won't change the interface language.
                         </p>
                     </div>
 
-                    <div class="mb-1">
-                        <label for="language" class="text-sm text-gray-700 mb-2 block">Language</label>
-                        <select id="language" name="language"
-                            class="lg:w-[400px] border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-1 focus:ring-[#003FB4]"
-                            required>
-                            <option value="korean">Korean</option>
+                    <!-- Language Selection -->
+                    <div>
+                        <label for="language" class="text-sm font-medium text-gray-700 mb-3 block">Preferred
+                            Languages</label>
+
+                        <!-- Search Box -->
+                        <div class="language-search-container">
+                            <i class="fa fa-search language-search-icon"></i>
+                            <input type="text" id="languageSearch" placeholder="Search languages..."
+                                class="language-search-input">
+                        </div>
+
+                        <!-- Language Selection Area -->
+                        <div class="language-options-container custom-scrollbar">
+                            <div id="languageOptions" class="divide-y divide-gray-100">
+                                <!-- Languages will be populated here -->
+                            </div>
+                        </div>
+
+                        <!-- Hidden select for form submission -->
+                        <select id="language" name="languages[]" multiple class="hidden" required>
                             <option value="english">English</option>
+                            <option value="korean">Korean</option>
                             <option value="spanish">Spanish</option>
                             <option value="french">French</option>
                             <option value="german">German</option>
@@ -574,14 +757,15 @@
                     </div>
                 </div>
 
-                <div class="links grid lg:flex justify-end items-center gap-4 lg:gap-8 border-t border-[#BCBCBC] p-4">
-                    <button type="button" class="text-[#003FB4] text-center px-4 py-2 font-semibold"
+                <div class="flex flex-col sm:flex-row justify-end items-center gap-4 border-t border-[#BCBCBC] p-6">
+                    <button type="button"
+                        class="w-full sm:w-auto px-6 py-3 text-gray-700 font-medium border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
                         onclick="closeEditLangChange()">
                         Cancel
                     </button>
                     <button type="submit"
-                        class="px-8 py-3 bg-[#003FB4] text-white rounded-lg text-base font-medium hover:bg-[#002d85] transition-colors">
-                        Confirm language change
+                        class="w-full sm:w-auto px-8 py-3 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
+                        Save Changes
                     </button>
                 </div>
             </form>
@@ -600,7 +784,7 @@
             </div>
 
             <p class="mb-8 text-[#46484D]">
-                You won’t be able to access your profile or information again once you delete your account. If you have
+                You won't be able to access your profile or information again once you delete your account. If you have
                 question, please reach out to <a href="mailto:{{ $contact_mail }}">{{ $contact_mail }}</a>
             </p>
 
@@ -662,18 +846,6 @@
         }
 
 
-        function editLangModal() {
-            document.getElementById('EditLangChange').style.display = 'flex';
-            document.body.style.overflow = 'hidden';
-        }
-
-
-        function closeEditLangChange() {
-            document.getElementById('EditLangChange').style.display = 'none';
-            document.body.style.overflow = 'auto';
-        }
-
-
         function deleteAccountModal() {
             document.getElementById('deleteAccountModal').style.display = 'flex';
             document.body.style.overflow = 'hidden';
@@ -696,6 +868,196 @@
                 icon.classList.remove('fa-eye-slash');
                 icon.classList.add('fa-eye');
             }
+        }
+
+        // Language data
+        const languages = [{
+                value: 'english',
+                label: 'English'
+            },
+            {
+                value: 'korean',
+                label: 'Korean'
+            },
+            {
+                value: 'spanish',
+                label: 'Spanish'
+            },
+            {
+                value: 'french',
+                label: 'French'
+            },
+            {
+                value: 'german',
+                label: 'German'
+            },
+            {
+                value: 'italian',
+                label: 'Italian'
+            },
+            {
+                value: 'portuguese',
+                label: 'Portuguese'
+            },
+            {
+                value: 'russian',
+                label: 'Russian'
+            },
+            {
+                value: 'japanese',
+                label: 'Japanese'
+            },
+            {
+                value: 'chinese',
+                label: 'Chinese (Simplified)'
+            },
+            {
+                value: 'chinese-traditional',
+                label: 'Chinese (Traditional)'
+            },
+            {
+                value: 'arabic',
+                label: 'Arabic'
+            },
+            {
+                value: 'hindi',
+                label: 'Hindi'
+            },
+            {
+                value: 'bengali',
+                label: 'Bengali'
+            },
+            {
+                value: 'dutch',
+                label: 'Dutch'
+            },
+            {
+                value: 'turkish',
+                label: 'Turkish'
+            },
+            {
+                value: 'polish',
+                label: 'Polish'
+            },
+            {
+                value: 'vietnamese',
+                label: 'Vietnamese'
+            },
+            {
+                value: 'thai',
+                label: 'Thai'
+            },
+            {
+                value: 'indonesian',
+                label: 'Indonesian'
+            }
+        ];
+
+        // Initialize the language selector
+        function initLanguageSelector() {
+            const languageOptionsContainer = document.getElementById('languageOptions');
+            const languageSearch = document.getElementById('languageSearch');
+            const hiddenSelect = document.getElementById('language');
+
+            // Populate language options
+            function renderLanguages(filter = '') {
+                languageOptionsContainer.innerHTML = '';
+
+                const filteredLanguages = languages.filter(lang =>
+                    lang.label.toLowerCase().includes(filter.toLowerCase())
+                );
+
+                if (filteredLanguages.length === 0) {
+                    languageOptionsContainer.innerHTML = `
+                        <div class="language-option text-center text-gray-500 py-4">
+                            No languages found matching "${filter}"
+                        </div>
+                    `;
+                    return;
+                }
+
+                filteredLanguages.forEach(lang => {
+                    const isSelected = Array.from(hiddenSelect.options).some(
+                        option => option.value === lang.value && option.selected
+                    );
+
+                    const optionElement = document.createElement('div');
+                    optionElement.className = `language-option ${isSelected ? 'selected' : ''}`;
+                    optionElement.dataset.value = lang.value;
+
+                    optionElement.innerHTML = `
+                        <div class="language-checkbox"></div>
+                        <span>${lang.label}</span>
+                    `;
+
+                    optionElement.addEventListener('click', () => {
+                        toggleLanguageSelection(lang.value, lang.label);
+                    });
+
+                    languageOptionsContainer.appendChild(optionElement);
+                });
+            }
+
+            // Toggle language selection
+            function toggleLanguageSelection(value, label) {
+                const hiddenOption = Array.from(hiddenSelect.options).find(option => option.value === value);
+                const languageOption = document.querySelector(`.language-option[data-value="${value}"]`);
+
+                if (hiddenOption.selected) {
+                    hiddenOption.selected = false;
+                    languageOption.classList.remove('selected');
+                } else {
+                    hiddenOption.selected = true;
+                    languageOption.classList.add('selected');
+                }
+            }
+
+
+
+            // Remove language from selection
+            window.removeLanguage = function(value) {
+                const hiddenOption = Array.from(hiddenSelect.options).find(option => option.value === value);
+                const languageOption = document.querySelector(`.language-option[data-value="${value}"]`);
+
+                if (hiddenOption) {
+                    hiddenOption.selected = false;
+                    if (languageOption) {
+                        languageOption.classList.remove('selected');
+                    }
+                }
+            };
+
+            // Search functionality
+            languageSearch.addEventListener('input', (e) => {
+                renderLanguages(e.target.value);
+            });
+
+            // Initialize
+            renderLanguages();
+        }
+
+        // Pre-select current languages when modal opens
+        function editLangModal() {
+            document.getElementById('EditLangChange').style.display = 'flex';
+            document.body.style.overflow = 'hidden';
+
+            // Get current languages from the page
+            const currentLang = "{{ $profile_data->language ?? '' }}";
+            const currentLanguages = currentLang.split(',').map(l => l.trim().toLowerCase());
+
+            // Pre-select options in the hidden select
+            const hiddenSelect = document.getElementById('language');
+            Array.from(hiddenSelect.options).forEach(option => {
+                option.selected = currentLanguages.includes(option.value);
+            });
+
+            // Initialize the language selector
+            initLanguageSelector();
+        }
+
+        function closeEditLangChange() {
+            document.getElementById('EditLangChange').style.display = 'none';
+            document.body.style.overflow = 'auto';
         }
     </script>
 @endsection
