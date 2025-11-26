@@ -29,43 +29,59 @@ class CredentialsController extends Controller
 
     public function verifySignUp(Request $request)
     {
-        $wholesaler_uid = 'WS_' . rand(11111111, 99999999);
         $email = $request['email'];
-        $password = $request['password'];
-        $otp = rand(111111, 999999);
         $wholesaler = Wholesaler::where('email', $email)->first();
 
-        $data = [
-            'email' => $email,
-            'otp' => $otp,
-        ];
+        // Check for existing social accounts
+        if ($wholesaler) {
+            if ($wholesaler->creation_with == 'google') {
+                return response()->json([
+                    'type' => 'error',
+                    'message' => 'You already have an account with this email with Google. Try logging with Google!',
+                ]);
+            }
 
-        Mail::send('mail.wholesaler_signup_otp', $data, function ($message) use ($email) {
-            $message->to($email)->subject("Your OTP Code for Sign-Up");
-        });
+            if ($wholesaler->creation_with == 'kakao') {
+                return response()->json([
+                    'type' => 'error',
+                    'message' => 'You already have an account with this email with Kakao. Try logging with Kakao Talk!',
+                ]);
+            }
+        }
+
+        $otp = rand(111111, 999999);
+        $password = bcrypt($request['password']);
 
         if ($wholesaler) {
-            $wholesaler = Wholesaler::where('email', $email)->update([
-                'password' => bcrypt($password),
-                'otp' => $otp,
+            // Update existing general account
+            $wholesaler->update([
+                'password' => $password,
+                'otp' => $otp
             ]);
         } else {
-            $wholesaler = Wholesaler::create([
-                'wholesaler_uid' => $wholesaler_uid,
+            // Create new account
+            Wholesaler::create([
+                'wholesaler_uid' => 'WS_' . rand(11111111, 99999999),
                 'email' => $email,
-                'password' => bcrypt($password),
+                'password' => $password,
                 'otp' => $otp,
                 'creation_with' => 'general',
             ]);
         }
 
+        // Send OTP email
+        Mail::send('mail.wholesaler_signup_otp', [
+            'email' => $email,
+            'otp' => $otp
+        ], function ($message) use ($email) {
+            $message->to($email)->subject("Your OTP Code for Sign-Up");
+        });
 
         return response()->json([
             'type' => 'success',
             'message' => 'OTP Sent To Your Email Address For Verification!',
         ]);
     }
-
 
 
 

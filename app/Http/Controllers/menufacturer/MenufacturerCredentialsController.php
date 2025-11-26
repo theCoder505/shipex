@@ -33,57 +33,59 @@ class MenufacturerCredentialsController extends Controller
 
 
 
-
     public function verifySignUp(Request $request)
     {
-        $manufacturer_uid = 'ManuFacturer_' . rand(111111, 999999);
         $email = $request['email'];
-        $password = $request['password'];
-        $otp = rand(111111, 999999);
         $manufacturer = Manufacturer::where('email', $email)->first();
 
-        $data = [
-            'email' => $email,
-            'otp' => $otp,
-        ];
+        // Check for existing social accounts
+        if ($manufacturer) {
+            if ($manufacturer->creation_with == 'google') {
+                return response()->json([
+                    'type' => 'error',
+                    'message' => 'You already have an account with this email with Google. Try logging with Google!',
+                ]);
+            }
 
-        if ($manufacturer->creation_with == 'google') {
-            return response()->json([
-                'type' => 'error',
-                'message' => 'You already have an account with this email: ' . $email . ' with Google. Try logging with Google!',
-            ]);
-        } elseif ($manufacturer->creation_with == 'kakao') {
-            return response()->json([
-                'type' => 'error',
-                'message' => 'You already have an account with this email: ' . $email . ' with Kakao. Try logging with Kakao Talk!',
-            ]);
+            if ($manufacturer->creation_with == 'kakao') {
+                return response()->json([
+                    'type' => 'error',
+                    'message' => 'You already have an account with this email with Kakao. Try logging with Kakao Talk!',
+                ]);
+            }
         }
 
-        Mail::send('mail.manufacturer_signup_otp', $data, function ($message) use ($email) {
-            $message->to($email)->subject("Your OTP Code for Sign-Up");
-        });
+        $otp = rand(111111, 999999);
+        $password = bcrypt($request['password']);
 
         if ($manufacturer) {
-            $manufacturer = Manufacturer::where('email', $email)->update([
-                'password' => bcrypt($password),
-                'otp' => $otp,
-            ]);
+            // Update existing general account
+            $manufacturer->update(['password' => $password, 'otp' => $otp]);
         } else {
-            $manufacturer = Manufacturer::create([
-                'manufacturer_uid' => $manufacturer_uid,
+            // Create new account
+            Manufacturer::create([
+                'manufacturer_uid' => 'ManuFacturer_' . rand(111111, 999999),
                 'email' => $email,
-                'password' => bcrypt($password),
+                'password' => $password,
                 'otp' => $otp,
                 'creation_with' => 'general',
             ]);
         }
+
+        // Send OTP email
+        Mail::send(
+            'mail.manufacturer_signup_otp',
+            ['email' => $email, 'otp' => $otp],
+            function ($message) use ($email) {
+                $message->to($email)->subject("Your OTP Code for Sign-Up");
+            }
+        );
 
         return response()->json([
             'type' => 'success',
             'message' => 'OTP Sent To Your Email Address For Verification!',
         ]);
     }
-
 
 
 
