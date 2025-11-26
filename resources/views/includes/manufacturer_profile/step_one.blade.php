@@ -190,7 +190,7 @@
             <hr class="my-12 text-gray-400">
 
             <div class="flex justify-between items-center">
-                <div class="text-sm text-gray-500">
+                <div class="text-sm text-gray-500 hidden">
                     <svg class="inline w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7">
                         </path>

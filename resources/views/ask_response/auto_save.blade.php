@@ -543,7 +543,7 @@ step_one.blade.php code below:
             <hr class="my-12 text-gray-400">
 
             <div class="flex justify-between items-center">
-                <div class="text-sm text-gray-500">
+                <div class="text-sm text-gray-500 hidden">
                     <svg class="inline w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7">
                         </path>
@@ -703,7 +703,7 @@ step_two.blade.php:
     </div>
 
     <div class="grid lg:flex justify-center gap-4 items-center relative">
-        <div class="text-sm text-gray-500 lg:absolute left-0">
+        <div class="text-sm text-gray-500 lg:absolute left-0 hidden">
             <svg class="inline w-4 h-4 mr-1 animate-spin hidden" id="saving_indicator" fill="none"
                 stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
@@ -1198,7 +1198,7 @@ step_three.blade.php:
     </div>
 
     <div class="grid lg:flex justify-center gap-4 items-center relative">
-        <div class="text-sm text-gray-500 lg:absolute left-0">
+        <div class="text-sm text-gray-500 lg:absolute left-0 hidden">
             <svg class="inline w-4 h-4 mr-1 animate-spin hidden" id="saving_indicator" fill="none"
                 stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
@@ -1463,7 +1463,7 @@ step_four.blade.php:
     </div>
 
     <div class="grid lg:flex justify-center gap-4 items-center relative">
-        <div class="text-sm text-gray-500 lg:absolute left-0">
+        <div class="text-sm text-gray-500 lg:absolute left-0 hidden">
             <svg class="inline w-4 h-4 mr-1 animate-spin hidden" id="saving_indicator" fill="none"
                 stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
@@ -1554,7 +1554,7 @@ step_five.blade.php:
     </div>
 
     <div class="grid lg:flex justify-center gap-4 items-center relative">
-        <div class="text-sm text-gray-500 lg:absolute left-0">
+        <div class="text-sm text-gray-500 lg:absolute left-0 hidden">
             <svg class="inline w-4 h-4 mr-1 animate-spin hidden" id="saving_indicator" fill="none"
                 stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
@@ -1912,7 +1912,7 @@ step_six.blade.php:
     </div>
 
     <div class="grid lg:flex justify-center gap-4 items-center relative mt-8">
-        <div class="text-sm text-gray-500 lg:absolute left-0">
+        <div class="text-sm text-gray-500 lg:absolute left-0 hidden">
             <svg class="inline w-4 h-4 mr-1 animate-spin hidden" id="saving_indicator" fill="none"
                 stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"

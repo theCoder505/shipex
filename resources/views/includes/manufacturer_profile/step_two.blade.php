@@ -127,7 +127,7 @@
     </div>
 
     <div class="grid lg:flex justify-center gap-4 items-center relative">
-        <div class="text-sm text-gray-500 lg:absolute left-0">
+        <div class="text-sm text-gray-500 lg:absolute left-0 hidden">
             <svg class="inline w-4 h-4 mr-1 animate-spin hidden" id="saving_indicator" fill="none"
                 stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
