@@ -410,11 +410,30 @@ class MenufacturerCredentialsController extends Controller
 
     public function changeEmailAddress(Request $request)
     {
-        $manufacturer_uid = Auth::guard('manufacturer')->user()->manufacturer_uid;
-        $update = Manufacturer::where('manufacturer_uid', $manufacturer_uid)->update([
-            'email' => $request['email_addr']
+        $request->validate([
+            'email_addr' => 'required|email'
         ]);
-        return redirect()->back()->with('success', 'Email address successfully changed.');
+
+        $manufacturer_uid = Auth::guard('manufacturer')->user()->manufacturer_uid;
+        $newEmail = $request->input('email_addr');
+
+        // If another manufacturer already has this email, block the change
+        $exists = Manufacturer::where('email', $newEmail)
+            ->where('manufacturer_uid', '!=', $manufacturer_uid)
+            ->exists();
+
+        if ($exists) {
+            return redirect()->back()->with('error', 'Email address already in use by another account.');
+        }
+
+        $updated = Manufacturer::where('manufacturer_uid', $manufacturer_uid)
+            ->update(['email' => $newEmail]);
+
+        if ($updated) {
+            return redirect()->back()->with('success', 'Email address successfully changed.');
+        }
+
+        return redirect()->back()->with('error', 'Failed to update email address.');
     }
 
 
