@@ -126,9 +126,9 @@ input[type="checkbox"]:checked {
     background: #05660C;
 }
 
-.step-content {
+/* .step-content {
     display: none;
-}
+} */
 
 .step-content.active {
     display: block;

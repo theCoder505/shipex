@@ -3,6 +3,7 @@
 use App\Http\Controllers\admin\AdminCredentials;
 use App\Http\Controllers\admin\AdminPagesController;
 use App\Http\Controllers\ChatsController;
+use App\Http\Controllers\ManufacturerProfileController;
 use App\Http\Controllers\menufacturer\ManufacturerPagesController;
 use App\Http\Controllers\menufacturer\MenufacturerCredentialsController;
 use App\Http\Controllers\menufacturer\SubscriptionController;
@@ -125,9 +126,19 @@ Route::get('/wholesaler/auth/kakao-login-callback', [SocialKakaoLoginConntroller
 
 
 
-Route::get('/manufacturer/application', [MenufacturerCredentialsController::class, 'completeApplication'])->middleware('manufacturer');
-Route::post('/manufacturer/complete-application', [MenufacturerCredentialsController::class, 'completeApplicationSubmit'])->middleware('manufacturer');
-Route::get('/manufacturer/application-successful', [MenufacturerCredentialsController::class, 'applicationSuccessful'])->middleware('manufacturer');
+// Route::get('/manufacturer/application', [MenufacturerCredentialsController::class, 'completeApplication'])->middleware('manufacturer');
+// Route::post('/manufacturer/complete-application', [MenufacturerCredentialsController::class, 'completeApplicationSubmit'])->middleware('manufacturer');
+// Route::get('/manufacturer/application-successful', [MenufacturerCredentialsController::class, 'applicationSuccessful'])->middleware('manufacturer');
+
+// Manufacturer Profile Completion Routes
+Route::get('/manufacturer/application', [ManufacturerProfileController::class, 'showStep'])->name('manufacturer.application')->middleware('manufacturer');
+Route::post('/manufacturer/application/step/{step}', [ManufacturerProfileController::class, 'saveStep'])->name('manufacturer.application.step.save')->middleware('manufacturer');
+Route::get('/manufacturer/application/step/{step}', [ManufacturerProfileController::class, 'showStep'])->name('manufacturer.application.step')->middleware('manufacturer');
+Route::post('/manufacturer/application/final-submit', [ManufacturerProfileController::class, 'finalSubmit'])->name('manufacturer.application.final.submit')->middleware('manufacturer');
+Route::get('/manufacturer/application-successful', [ManufacturerProfileController::class, 'applicationSuccessful'])->name('manufacturer.application.successful')->middleware('manufacturer');
+
+
+
 Route::post('/manufacturer/logout', [MenufacturerCredentialsController::class, 'logoutManufacturer'])->middleware('manufacturer');
 
 Route::get('/manufacturer/forget-password', [MenufacturerCredentialsController::class, 'manufacturerForgetPwd']);
