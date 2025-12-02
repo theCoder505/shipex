@@ -212,7 +212,7 @@
                         <div class="review-header" data-toggle="company-info" onclick="toggleAccordion(this)">
                             <div class="flex gap-2 flex-wrap">
                                 <h3 class="review-title">Company Information</h3>
-                                <a class="edit-btn" href="/manufacturer/application?step=1">
+                                <a class="edit-btn" href="/manufacturer/application/step/1">
                                     <svg class="w-4 h-4 inline mr-1" fill="none" stroke="currentColor"
                                         viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
@@ -295,7 +295,7 @@
                         <div class="review-header" data-toggle="business-profile" onclick="toggleAccordion(this)">
                             <div class="flex gap-2 flex-wrap">
                                 <h3 class="review-title">Business Profile</h3>
-                                <a class="edit-btn" href="/manufacturer/application?step=2">
+                                <a class="edit-btn" href="/manufacturer/application/step/2">
                                     <svg class="w-4 h-4 inline mr-1" fill="none" stroke="currentColor"
                                         viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
@@ -332,7 +332,7 @@
                         <div class="review-header" data-toggle="product-info" onclick="toggleAccordion(this)">
                             <div class="flex gap-2 flex-wrap">
                                 <h3 class="review-title">Product Information</h3>
-                                <a class="edit-btn" href="/manufacturer/application?step=3">
+                                <a class="edit-btn" href="/manufacturer/application/step/3">
                                     <svg class="w-4 h-4 inline mr-1" fill="none" stroke="currentColor"
                                         viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
@@ -392,7 +392,7 @@
                         <div class="review-header" data-toggle="trust-verification" onclick="toggleAccordion(this)">
                             <div class="flex gap-2 flex-wrap">
                                 <h3 class="review-title">Trust & Verifications</h3>
-                                <a class="edit-btn" href="/manufacturer/application?step=4">
+                                <a class="edit-btn" href="/manufacturer/application/step/4">
                                     <svg class="w-4 h-4 inline mr-1" fill="none" stroke="currentColor"
                                         viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
@@ -472,7 +472,7 @@
                         <div class="review-header" data-toggle="declaration" onclick="toggleAccordion(this)">
                             <div class="flex gap-2 flex-wrap">
                                 <h3 class="review-title">Declaration</h3>
-                                <a class="edit-btn" href="/manufacturer/application?step=5">
+                                <a class="edit-btn" href="/manufacturer/application/step/5">
                                     <svg class="w-4 h-4 inline mr-1" fill="none" stroke="currentColor"
                                         viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
