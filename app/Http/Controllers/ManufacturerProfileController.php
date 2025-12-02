@@ -137,7 +137,7 @@ class ManufacturerProfileController extends Controller
 
             case 2: // Business Profile
                 $rules = [
-                    'business_type' => 'required|string|in:Manufacturer, OEM, ODM, Exporter,Manufacturer,OEM,ODM,Exporter,Refurbished',
+                    'business_type' => 'required|string|in:"Manufacturer, OEM, ODM, Exporter", Manufacturer, OEM, ODM, Exporter,Manufacturer,OEM,ODM,Exporter,Refurbished',
                     'industry_category' => 'required|string|in:Electronics,Textiles,Machinery,Chemicals,Food & Beverage,Automotive,Other',
                     'business_registration_number' => 'required|string|max:100',
                     'business_registration_license' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:5120',
