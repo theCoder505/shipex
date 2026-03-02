@@ -71,6 +71,8 @@ class Manufacturer extends Authenticatable
 
 
         'language',
+        'profile_completed',
+        'profile_completed_at',
 
         // Subscription
         'subscription', // subscription status

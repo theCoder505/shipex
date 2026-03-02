@@ -32,6 +32,7 @@ class AppServiceProvider extends ServiceProvider
         $brandlogo = asset('storage/' . WebsiteInformation::where('id', 1)->value('brandlogo'));
         $website_icon = asset('storage/' . WebsiteInformation::where('id', 1)->value('website_icon'));
         $contact_mail = WebsiteInformation::where('id', 1)->value('contact_mail');
+        $contact_phone = WebsiteInformation::where('id', 1)->value('contact_phone');
         $business_registration_number = WebsiteInformation::where('id', 1)->value('business_registration_number');
         $business_address = WebsiteInformation::where('id', 1)->value('business_address');
         $open_dys = WebsiteInformation::where('id', 1)->value('open_dys');
@@ -41,6 +42,7 @@ class AppServiceProvider extends ServiceProvider
         View::share('brandlogo', $brandlogo);
         View::share('website_icon', $website_icon);
         View::share('contact_mail', $contact_mail);
+        View::share('contact_phone', $contact_phone);
         View::share('business_registration_number', $business_registration_number);
         View::share('business_address', $business_address);
         View::share('open_dys', $open_dys);

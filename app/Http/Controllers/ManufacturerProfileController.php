@@ -6,6 +6,8 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Validator;
 use App\Models\Manufacturer;
+use App\Models\WebsiteInformation;
+use Illuminate\Support\Facades\Mail;
 
 class ManufacturerProfileController extends Controller
 {
@@ -21,7 +23,7 @@ class ManufacturerProfileController extends Controller
 
         $manufacturer_uid = Auth::guard('manufacturer')->user()->manufacturer_uid;
         $profile_data = Manufacturer::where('manufacturer_uid', $manufacturer_uid)->first();
-        
+
         // If user tries to skip steps, redirect them to the next incomplete step
         $nextIncompleteStep = $this->getNextIncompleteStep($profile_data);
         if ($step > $nextIncompleteStep) {
@@ -42,23 +44,23 @@ class ManufacturerProfileController extends Controller
         if (empty($manufacturer->name) || empty($manufacturer->company_name_en)) {
             return 1;
         }
-        
+
         if (empty($manufacturer->business_type) || empty($manufacturer->business_registration_number)) {
             return 2;
         }
-        
+
         if (empty($manufacturer->main_product_category) || empty($manufacturer->production_capacity)) {
             return 3;
         }
-        
+
         if (empty($manufacturer->has_qms)) {
             return 4;
         }
-        
+
         if (empty($manufacturer->agree_terms) || empty($manufacturer->digital_signature)) {
             return 5;
         }
-        
+
         return 6; // All steps completed, show review
     }
 
@@ -201,13 +203,25 @@ class ManufacturerProfileController extends Controller
                 } else {
                     $processedData['company_logo'] = $manufacturer->company_logo ?? null;
                 }
-                
+
                 // Copy other fields
-                $fields = ['name', 'company_name_en', 'company_name_ko', 'company_address_en', 
-                         'company_address_ko', 'year_established', 'number_of_employees',
-                         'website', 'business_introduction', 'contact_name', 'contact_position',
-                         'contact_email', 'contact_phone', 'company_google_location'];
-                
+                $fields = [
+                    'name',
+                    'company_name_en',
+                    'company_name_ko',
+                    'company_address_en',
+                    'company_address_ko',
+                    'year_established',
+                    'number_of_employees',
+                    'website',
+                    'business_introduction',
+                    'contact_name',
+                    'contact_position',
+                    'contact_email',
+                    'contact_phone',
+                    'company_google_location'
+                ];
+
                 foreach ($fields as $field) {
                     if (isset($data[$field])) {
                         $processedData[$field] = $data[$field];
@@ -222,11 +236,16 @@ class ManufacturerProfileController extends Controller
                 } else {
                     $processedData['business_registration_license'] = $manufacturer->business_registration_license ?? null;
                 }
-                
+
                 // Copy other fields
-                $fields = ['business_type', 'industry_category', 'business_registration_number',
-                         'export_experience', 'export_years'];
-                
+                $fields = [
+                    'business_type',
+                    'industry_category',
+                    'business_registration_number',
+                    'export_experience',
+                    'export_years'
+                ];
+
                 foreach ($fields as $field) {
                     if (isset($data[$field])) {
                         $processedData[$field] = $data[$field];
@@ -241,25 +260,30 @@ class ManufacturerProfileController extends Controller
                 } else {
                     $processedData['products'] = $manufacturer->products ?? [];
                 }
-                
+
                 // Handle certifications
                 if ($request->has('certifications')) {
                     $processedData['certifications'] = $this->handleCertificationsUpload($request, $manufacturer);
                 } else {
                     $processedData['certifications'] = $manufacturer->certifications ?? [];
                 }
-                
+
                 // Handle patents
                 if ($request->has('patents') && isset($data['has_patents']) && $data['has_patents'] == 'yes') {
                     $processedData['patents'] = $this->handlePatentsUpload($request, $manufacturer);
                 } else {
                     $processedData['patents'] = [];
                 }
-                
+
                 // Copy other fields
-                $fields = ['main_product_category', 'production_capacity', 'production_capacity_unit',
-                         'moq', 'has_patents'];
-                
+                $fields = [
+                    'main_product_category',
+                    'production_capacity',
+                    'production_capacity_unit',
+                    'moq',
+                    'has_patents'
+                ];
+
                 foreach ($fields as $field) {
                     if (isset($data[$field])) {
                         $processedData[$field] = $data[$field];
@@ -274,23 +298,23 @@ class ManufacturerProfileController extends Controller
                 } else {
                     $processedData['factory_pictures'] = $manufacturer->factory_pictures ?? [];
                 }
-                
+
                 // Handle catalogue
                 if ($request->hasFile('catalogue')) {
                     $this->handleSingleFileUpload($request, $processedData, 'catalogue', 'catalogue/', $manufacturer);
                 } else {
                     $processedData['catalogue'] = $manufacturer->catalogue ?? null;
                 }
-                
+
                 // Copy other fields
                 $fields = ['has_qms', 'factory_audit_available'];
-                
+
                 foreach ($fields as $field) {
                     if (isset($data[$field])) {
                         $processedData[$field] = $data[$field];
                     }
                 }
-                
+
                 // Handle standards array
                 $processedData['standards'] = $request->has('standards') ? $request->standards : [];
                 break;
@@ -488,15 +512,30 @@ class ManufacturerProfileController extends Controller
     {
         $manufacturer_uid = Auth::guard('manufacturer')->user()->manufacturer_uid;
         $manufacturer = Manufacturer::where('manufacturer_uid', $manufacturer_uid)->first();
+        $contact_mail = WebsiteInformation::where('id', 1)->value('contact_mail');
+        // $contact_mail = 'programmer.emad7867@gmail.com';
+
+        if ($manufacturer->profile_completed != 1) {
+            $data = [
+                'brandname' => config('app.name'),
+                'useremail' => $manufacturer->email,
+                'username' => $manufacturer->name,
+                'company_name' => $manufacturer->company_name_en,
+                'registered_at' => $manufacturer->created_at,
+                'usertype' => 'manufacturer',
+            ];
+
+            Mail::send('mail.new_user_notify_admin', $data, function ($message) use ($contact_mail) {
+                $message->to($contact_mail)->subject("New Manufacturer Registered To System");
+            });
+        }
+
 
         // Mark as completed
         $manufacturer->update([
-            'profile_completed' => true,
+            'profile_completed' => 1,
             'profile_completed_at' => now(),
         ]);
-
-        // Send notification email if needed
-        // $this->sendNotificationEmail($manufacturer);
 
         return redirect()->route('manufacturer.application.successful')
             ->with('success', 'Your application has been submitted successfully!');

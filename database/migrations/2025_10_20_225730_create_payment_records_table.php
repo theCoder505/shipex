@@ -6,18 +6,26 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    /**
-     * Run the migrations.
-     */
     public function up(): void
     {
         Schema::create('payment_records', function (Blueprint $table) {
             $table->id();
             $table->string('manufacturer_uid');
-            $table->string('stripe_customer_id')->nullable();
-            $table->string('stripe_subscription_id')->nullable();
-            $table->string('stripe_invoice_id')->nullable();
-            $table->string('stripe_payment_intent_id')->nullable();
+
+            // ── PayPal ───────────────────────────────────────────────────────
+            $table->string('paypal_payment_id')->nullable();
+            $table->string('paypal_payer_id')->nullable();
+            $table->string('paypal_order_id')->nullable();
+            $table->string('paypal_transaction_id')->nullable();
+            $table->text('paypal_response')->nullable();
+
+            // ── TOSS ─────────────────────────────────────────────────────────
+            $table->string('toss_payment_key')->nullable();
+            $table->string('toss_order_id')->nullable();
+            $table->string('toss_transaction_id')->nullable();
+            $table->text('toss_response')->nullable();
+
+            // ── Common ───────────────────────────────────────────────────────
             $table->string('package_type');
             $table->decimal('amount', 10, 2);
             $table->string('currency')->default('usd');
@@ -27,23 +35,19 @@ return new class extends Migration
             $table->string('billing_email');
             $table->string('billing_phone')->nullable();
             $table->text('billing_address')->nullable();
-            $table->string('payment_method')->default('stripe');
-            $table->text('stripe_response')->nullable();
+            $table->string('payment_method')->default('paypal'); // paypal | toss | coupon
             $table->timestamp('payment_date')->useCurrent();
-            $table->timestamp('next_billing_date')->nullable();
+            $table->timestamp('subscription_end_date')->nullable();
             $table->timestamps();
 
-            // Indexes
+            // ── Indexes ──────────────────────────────────────────────────────
             $table->index('manufacturer_uid');
-            $table->index('stripe_customer_id');
-            $table->index('stripe_subscription_id');
             $table->index('payment_status');
+            $table->index('toss_payment_key');
+            $table->index('toss_order_id');
         });
     }
 
-    /**
-     * Reverse the migrations.
-     */
     public function down(): void
     {
         Schema::dropIfExists('payment_records');

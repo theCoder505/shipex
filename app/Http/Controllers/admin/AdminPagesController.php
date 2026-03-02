@@ -10,6 +10,7 @@ use App\Models\Manufacturer;
 use App\Models\PackageDetails;
 use App\Models\PaymentRecord;
 use App\Models\Reviews;
+use App\Models\Statistic;
 use App\Models\WebsiteInformation;
 use App\Models\Wholesaler;
 use Illuminate\Http\Request;
@@ -105,6 +106,63 @@ class AdminPagesController extends Controller
     {
         Reviews::where('id', $review_id)->delete();
         return redirect()->back()->with('success', 'Review ID: ' . $review_id . ' deleted successfully!');
+    }
+
+
+
+
+
+
+
+
+
+    public function adminStatistics()
+    {
+        $base = Statistic::humans(); // exclude bots
+
+        $totalVisits      = (clone $base)->count();
+        $todayVisits      = (clone $base)->today()->count();
+        $thisWeekVisits   = (clone $base)->thisWeek()->count();
+        $thisMonthVisits  = (clone $base)->thisMonth()->count();
+        $uniqueVisitors   = (clone $base)->distinct('visitor_ip_address')->count('visitor_ip_address');
+
+        $byCountry  = (clone $base)->selectRaw('visitor_country, count(*) as total')
+            ->groupBy('visitor_country')->orderByDesc('total')->limit(10)->get();
+
+        $byDevice   = (clone $base)->selectRaw('visitor_device, count(*) as total')
+            ->groupBy('visitor_device')->orderByDesc('total')->get();
+
+        $byBrowser  = (clone $base)->selectRaw('visitor_browser, count(*) as total')
+            ->groupBy('visitor_browser')->orderByDesc('total')->limit(8)->get();
+
+        $byOs       = (clone $base)->selectRaw('visitor_os, count(*) as total')
+            ->groupBy('visitor_os')->orderByDesc('total')->limit(8)->get();
+
+        // Last 30 days daily chart data
+        $dailyVisits = (clone $base)
+            ->selectRaw('DATE(created_at) as date, count(*) as total')
+            ->where('created_at', '>=', now()->subDays(29))
+            ->groupBy('date')->orderBy('date')->get();
+
+        $topPages = (clone $base)->selectRaw('page_name, page_url, count(*) as total')
+            ->groupBy('page_name', 'page_url')->orderByDesc('total')->limit(10)->get();
+
+        $recentVisits = (clone $base)->latest()->limit(20)->get();
+
+        return view('admin.statistics', compact(
+            'totalVisits',
+            'todayVisits',
+            'thisWeekVisits',
+            'thisMonthVisits',
+            'uniqueVisitors',
+            'byCountry',
+            'byDevice',
+            'byBrowser',
+            'byOs',
+            'dailyVisits',
+            'topPages',
+            'recentVisits'
+        ));
     }
 
 
@@ -234,6 +292,10 @@ class AdminPagesController extends Controller
             'PAYPAL_CLIENT_ID' => 'sometimes|string|max:255',
             'PAYPAL_SECRET' => 'sometimes|string|max:255',
             'PAYPAL_MODE' => 'sometimes|string|max:255',
+            'TOSS_CLIENT_KEY' => 'sometimes|string|max:255',
+            'TOSS_SECRET_KEY' => 'sometimes|string|max:255',
+            'stripe_client_id' => 'sometimes|string|max:255',
+            'stripe_secret_key' => 'sometimes|string|max:255',
 
             'google_client_id' => 'sometimes|string|max:255',
             'google_client_secret' => 'sometimes|string|max:255',
@@ -257,9 +319,10 @@ class AdminPagesController extends Controller
             'business_registration_number' => 'sometimes|string|max:255',
             'business_address' => 'sometimes|string|max:500',
 
-            'terms_conditions => sometimes|string',
-            'privacy_policy => sometimes|string',
+            'terms_conditions' => 'sometimes|string',
+            'privacy_policy' => 'sometimes|string',
         ]);
+
 
         $settings = WebsiteInformation::firstOrNew(['id' => 1]);
 

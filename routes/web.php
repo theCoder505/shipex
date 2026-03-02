@@ -20,38 +20,39 @@ Route::get('/test-email', [SurfacePagesController::class, 'testEmail']);
 
 
 
-Route::get('/', [SurfacePagesController::class, 'indexPage']);
-Route::post('/filter-manufacturers', [SurfacePagesController::class, 'filterManufacturers'])->name('filter.manufacturers');
-Route::get('/manufacturers', [SurfacePagesController::class, 'manufacturersPage']);
-Route::get('/help', [SurfacePagesController::class, 'helpPage']);
-Route::get('/privacy-policy', [SurfacePagesController::class, 'PrivacyPolicyPage']);
-Route::get('/terms-of-use', [SurfacePagesController::class, 'TermsOfUsePage']);
-Route::get('/contact-us', [SurfacePagesController::class, 'ContactUs']);
+Route::get('/', [SurfacePagesController::class, 'indexPage'])->middleware('statistics')->name('Landing Page');
 
-Route::get('/create-account', [SurfacePagesController::class, 'accountSelection']);
+Route::post('/filter-manufacturers', [SurfacePagesController::class, 'filterManufacturers'])->name('filter.manufacturers');
+Route::get('/manufacturers', [SurfacePagesController::class, 'manufacturersPage'])->middleware('statistics')->name('Manufacturers Page');
+Route::get('/help', [SurfacePagesController::class, 'helpPage'])->middleware('statistics')->name('Help Page');
+Route::get('/privacy-policy', [SurfacePagesController::class, 'PrivacyPolicyPage'])->middleware('statistics')->name('Privacy Policy Page');
+Route::get('/terms-of-use', [SurfacePagesController::class, 'TermsOfUsePage'])->middleware('statistics')->name('Terms of Use Page');
+Route::get('/contact-us', [SurfacePagesController::class, 'ContactUs'])->middleware('statistics')->name('Contact Us Page');
+
+Route::get('/create-account', [SurfacePagesController::class, 'accountSelection'])->middleware('statistics')->name('Create Account Page');
 
 
 
 Route::post('/serach-menufacturer', [SurfacePagesController::class, 'searchMenufacturer']);
-Route::get('/manufacturers/{manufacturer_name}/{manufacturer_uid}', [SurfacePagesController::class, 'specManufacturer']);
+Route::get('/manufacturers/{manufacturer_name}/{manufacturer_uid}', [SurfacePagesController::class, 'specManufacturer'])->middleware('statistics')->name('Specific Manufacturer');;
 Route::post('/wholesaler/review-manufacturer', [SurfacePagesController::class, 'reviewManufacturer'])->middleware('wholesaler');
 
 
 
 // wholesaler
-Route::get('/wholesaler/login', [CredentialsController::class, 'wholesalerSignInPage']);
+Route::get('/wholesaler/login', [CredentialsController::class, 'wholesalerSignInPage'])->middleware('statistics')->name('Wholesaler Login Page');
 Route::post('/wholesaler/sign-in-verification', [CredentialsController::class, 'wholesalerSignInVerification']);
-Route::get('/wholesaler/signup', [CredentialsController::class, 'wholesalerSignupPages']);
+Route::get('/wholesaler/signup', [CredentialsController::class, 'wholesalerSignupPages'])->middleware('statistics')->name('Wholesaler Signup Page');
 Route::post('/wholesaler/verify-signup', [CredentialsController::class, 'verifySignUp']);
 Route::post('/wholesaler/otp-verification', [CredentialsController::class, 'OTPVerification']);
 
-Route::get('/wholesaler/forget-password', [CredentialsController::class, 'wholesalerForgetPwd']);
+Route::get('/wholesaler/forget-password', [CredentialsController::class, 'wholesalerForgetPwd'])->middleware('statistics')->name('Wholesaler Forget Password Page');
 Route::post('/wholesaler/forget-password-request', [CredentialsController::class, 'wholesalerForgetPwdRequest']);
 Route::get('/wholesaler/reset-link-sent', [CredentialsController::class, 'resetLinkSent']);
 Route::get('/wholesaler/verify-reset-password/{reset_token}', [CredentialsController::class, 'verifyResetPassword']);
 Route::post('/wholesaler/setup-new-password', [CredentialsController::class, 'resetPassword']);
 
-Route::get('/wholesaler/profile-setup', [CredentialsController::class, 'completeWholeSalerProfile'])->middleware('wholesaler');
+Route::get('/wholesaler/profile-setup', [CredentialsController::class, 'completeWholeSalerProfile'])->middleware('wholesaler')->middleware('statistics')->name('Wholesaler Personal Profile');
 Route::post('/wholesaler/complete-profile-setup', [CredentialsController::class, 'wholesalerProfileSetup'])->middleware('wholesaler');
 Route::post('/wholesaler/logout', [CredentialsController::class, 'logoutWholeSaler'])->middleware('wholesaler');
 
@@ -79,10 +80,10 @@ Route::get('/wholesaler/account-deleted', [CredentialsController::class, 'delete
 
 
 // manufacturer 
-Route::get('/manufacturer/login', [MenufacturerCredentialsController::class, 'manufacturerSigninPage']);
+Route::get('/manufacturer/login', [MenufacturerCredentialsController::class, 'manufacturerSigninPage'])->middleware('statistics')->name('Manufacturer Login Page');
 Route::post('/manufacturer/sign-in-verification', [MenufacturerCredentialsController::class, 'manufacturerSignInVerfication']);
 
-Route::get('/manufacturer/signup', [MenufacturerCredentialsController::class, 'manufacturerSignupPages']);
+Route::get('/manufacturer/signup', [MenufacturerCredentialsController::class, 'manufacturerSignupPages'])->middleware('statistics')->name('Manufacturer Signup Page');
 Route::post('/manufacturer/verify-signup', [MenufacturerCredentialsController::class, 'verifySignUp']);
 Route::post('/manufacturer/otp-verification', [MenufacturerCredentialsController::class, 'OTPVerification']);
 
@@ -96,13 +97,13 @@ Route::post('/manufacturer/otp-verification', [MenufacturerCredentialsController
 
 
 // GOOGLE SOCIALITE
-Route::get('/manufacturer/signup-with-google', [SocialiteAuthConntroller::class, 'manufacturerGoogleSignUp']);
+Route::get('/manufacturer/signup-with-google', [SocialiteAuthConntroller::class, 'manufacturerGoogleSignUp'])->middleware('statistics')->name('Manufacturer Google Signup Page');
 Route::get('/manufacturer/auth/google/callback', [SocialiteAuthConntroller::class, 'manufacturerGoogleCallback']);
 Route::get('/manufacturer/login-with-google', [SocialiteAuthConntroller::class, 'manufacturerGoogleLogin']);
 Route::get('/manufacturer/auth/google-login-callback', [SocialiteAuthConntroller::class, 'manufacturerGoogleLoginCallback']);
 
 
-Route::get('/wholesaler/signup-with-google', [SocialiteAuthConntroller::class, 'wholesalerGoogleSignUp']);
+Route::get('/wholesaler/signup-with-google', [SocialiteAuthConntroller::class, 'wholesalerGoogleSignUp'])->middleware('statistics')->name('Wholesaler Google Signup Page');
 Route::get('/wholesaler/auth/google/callback', [SocialiteAuthConntroller::class, 'wholesalerGoogleCallback']);
 Route::get('/wholesaler/login-with-google', [SocialiteAuthConntroller::class, 'wholesalerGoogleLogin']);
 Route::get('/wholesaler/auth/google-login-callback', [SocialiteAuthConntroller::class, 'wholesalerGoogleLoginCallback']);
@@ -110,13 +111,13 @@ Route::get('/wholesaler/auth/google-login-callback', [SocialiteAuthConntroller::
 
 
 // Manufacturer - Kakao
-Route::get('/manufacturer/signup-with-kakao', [SocialKakaoLoginConntroller::class, 'manufacturerKakaoSignUp']);
+Route::get('/manufacturer/signup-with-kakao', [SocialKakaoLoginConntroller::class, 'manufacturerKakaoSignUp'])->middleware('statistics')->name('Manufacturer Kakao Signup Page');
 Route::get('/manufacturer/auth/kakao/callback', [SocialKakaoLoginConntroller::class, 'manufacturerKakaoCallback']);
 Route::get('/manufacturer/login-with-kakao', [SocialKakaoLoginConntroller::class, 'manufacturerKakaoLogin']);
 Route::get('/manufacturer/auth/kakao-login-callback', [SocialKakaoLoginConntroller::class, 'manufacturerKakaoLoginCallback']);
 
 // Wholesaler - Kakao
-Route::get('/wholesaler/signup-with-kakao', [SocialKakaoLoginConntroller::class, 'wholesalerKakaoSignUp']);
+Route::get('/wholesaler/signup-with-kakao', [SocialKakaoLoginConntroller::class, 'wholesalerKakaoSignUp'])->middleware('statistics')->name('Wholesaler Kakao Signup Page');
 Route::get('/wholesaler/auth/kakao/callback', [SocialKakaoLoginConntroller::class, 'wholesalerKakaoCallback']);
 Route::get('/wholesaler/login-with-kakao', [SocialKakaoLoginConntroller::class, 'wholesalerKakaoLogin']);
 Route::get('/wholesaler/auth/kakao-login-callback', [SocialKakaoLoginConntroller::class, 'wholesalerKakaoLoginCallback']);
@@ -131,7 +132,7 @@ Route::get('/wholesaler/auth/kakao-login-callback', [SocialKakaoLoginConntroller
 // Route::get('/manufacturer/application-successful', [MenufacturerCredentialsController::class, 'applicationSuccessful'])->middleware('manufacturer');
 
 // Manufacturer Profile Completion Routes
-Route::get('/manufacturer/application', [ManufacturerProfileController::class, 'showStep'])->name('manufacturer.application')->middleware('manufacturer');
+Route::get('/manufacturer/application', [ManufacturerProfileController::class, 'showStep'])->name('manufacturer.application')->middleware('manufacturer')->middleware('statistics');
 Route::post('/manufacturer/application/step/{step}', [ManufacturerProfileController::class, 'saveStep'])->name('manufacturer.application.step.save')->middleware('manufacturer');
 Route::get('/manufacturer/application/step/{step}', [ManufacturerProfileController::class, 'showStep'])->name('manufacturer.application.step')->middleware('manufacturer');
 Route::post('/manufacturer/application/final-submit', [ManufacturerProfileController::class, 'finalSubmit'])->name('manufacturer.application.final.submit')->middleware('manufacturer');
@@ -141,7 +142,7 @@ Route::get('/manufacturer/application-successful', [ManufacturerProfileControlle
 
 Route::post('/manufacturer/logout', [MenufacturerCredentialsController::class, 'logoutManufacturer'])->middleware('manufacturer');
 
-Route::get('/manufacturer/forget-password', [MenufacturerCredentialsController::class, 'manufacturerForgetPwd']);
+Route::get('/manufacturer/forget-password', [MenufacturerCredentialsController::class, 'manufacturerForgetPwd'])->middleware('statistics')->name('Manufacturer Forget Password Page');
 Route::post('/manufacturer/forget-password-request', [MenufacturerCredentialsController::class, 'manufacturerForgetPwdRequest']);
 Route::get('/manufacturer/reset-link-sent', [MenufacturerCredentialsController::class, 'resetLinkSent']);
 Route::get('/manufacturer/verify-reset-password/{reset_token}', [MenufacturerCredentialsController::class, 'verifyResetPassword']);
@@ -150,19 +151,35 @@ Route::post('/manufacturer/setup-new-password', [MenufacturerCredentialsControll
 
 
 
-Route::get('/manufacturer/packages', [SubscriptionController::class, 'manufacturerSubscription'])->name('manufacturer.subscription');
+
+
+Route::get('/manufacturer/packages', [SubscriptionController::class, 'manufacturerSubscription'])->name('manufacturer.subscription')->middleware('statistics');
 Route::post('/manufacturer/check-coupon-code', [SubscriptionController::class, 'checkCouponCode']);
-
-
 Route::post('/manufacturer/purchase-subscription', [SubscriptionController::class, 'purchaseSubscription'])->middleware('approved_manufacturer');
-Route::post('/manufacturer/process-payment', [SubscriptionController::class, 'processSubscriptionPayment'])->name('manufacturer.process-payment')->middleware('approved_manufacturer');
 
+// ── PayPal ──────────────────────────────────────────────────────────────────
+Route::post('/manufacturer/process-payment', [SubscriptionController::class, 'processSubscriptionPayment'])->name('manufacturer.process-payment')->middleware('approved_manufacturer');
 Route::get('/manufacturer/subscription-success', [SubscriptionController::class, 'subscriptionSuccess'])->name('manufacturer.subscription-success')->middleware('approved_manufacturer');
 Route::get('/manufacturer/subscription-cancel', [SubscriptionController::class, 'subscriptionCancel'])->name('manufacturer.subscription-cancel')->middleware('approved_manufacturer');
 
+// ── TOSS ────────────────────────────────────────────────────────────────────
+Route::post('/manufacturer/process-toss', [SubscriptionController::class, 'processTossPayment'])->name('manufacturer.process-toss')->middleware('approved_manufacturer');
+Route::get('/manufacturer/toss-success', [SubscriptionController::class, 'tossSuccess'])->name('manufacturer.toss-success')->middleware('approved_manufacturer');
+Route::get('/manufacturer/toss-fail', [SubscriptionController::class, 'tossFail'])->name('manufacturer.toss-fail')->middleware('approved_manufacturer');
 
+// ── Stripe ──────────────────────────────────────────────────────────────────
+Route::post('/manufacturer/process-stripe', [SubscriptionController::class, 'processStripePayment'])->name('manufacturer.process-stripe')->middleware('approved_manufacturer');
+Route::get('/manufacturer/stripe-success', [SubscriptionController::class, 'stripeSuccess'])->name('manufacturer.stripe-success')->middleware('approved_manufacturer');
+Route::get('/manufacturer/stripe-cancel', [SubscriptionController::class, 'stripeCancel'])->name('manufacturer.stripe-cancel')->middleware('approved_manufacturer');
+
+// ── Manage ──────────────────────────────────────────────────────────────────
 Route::get('/manufacturer/manage-subscription', [SubscriptionController::class, 'manageSubscription'])->name('manufacturer.manage-subscription')->middleware('manufacturer');
 Route::post('/manufacturer/cancel-subscription', [SubscriptionController::class, 'cancelSubscription'])->name('manufacturer.cancel-subscription')->middleware('approved_manufacturer');
+
+
+
+
+
 
 
 
@@ -187,8 +204,10 @@ Route::get('/wholesaler/chats', [ChatsController::class, 'chatRecords'])->middle
 Route::get('/wholesaler/chats/{manufacturer_uid}', [ChatsController::class, 'chatWithSpecManufacturer'])->middleware('wholesaler');
 
 Route::post('/fetch-chats', [ChatsController::class, 'fetchChats'])->middleware('manufacturer_or_wholesaler');
+
 Route::post('/send-text-message', [ChatsController::class, 'sendMessage'])->middleware('manufacturer_or_wholesaler');
 Route::post('/send-file-message', [ChatsController::class, 'sendFileMessage'])->middleware('manufacturer_or_wholesaler');
+
 Route::post('/get-user-chat-info', [ChatsController::class, 'getUserChatInfo'])->middleware('manufacturer_or_wholesaler');
 Route::post('/get-unread-count', [ChatsController::class, 'getUnreadCount'])->middleware('manufacturer_or_wholesaler');
 Route::post('/update-last-active', [ChatsController::class, 'updateLastActive'])->middleware('manufacturer_or_wholesaler');
@@ -225,6 +244,8 @@ Route::post('/admin/users/manufacturers/change-status', [AdminPagesController::c
 Route::get('/admin/manufacturers/{manufacturer_uid}/reviews', [AdminPagesController::class, 'showManufacturerReviews'])->middleware('admin');
 Route::get('/admin/reviews/{review_id}/{option}', [AdminPagesController::class, 'reviewToggle'])->middleware('admin');
 Route::delete('/admin/reviews/delete/{review_id}', [AdminPagesController::class, 'deleteReview'])->middleware('admin');
+Route::get('/admin/statistics', [AdminPagesController::class, 'adminStatistics'])->middleware('admin');
+
 
 
 Route::get('/admin/users/wholesalers', [AdminPagesController::class, 'showWholesalers'])->middleware('admin');

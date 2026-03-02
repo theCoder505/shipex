@@ -107,6 +107,8 @@ class CredentialsController extends Controller
             $wholesaler->save();
             Auth::guard('wholesaler')->login($wholesaler);
 
+            // send an email to admin over new user registered!
+
             return response()->json([
                 'type' => 'success',
                 'message' => 'OTP Verification Successful!',
@@ -237,12 +239,28 @@ class CredentialsController extends Controller
     {
         $wholesaler_uid = Auth::guard('wholesaler')->user()->wholesaler_uid;
         $wholesaler = Wholesaler::where('wholesaler_uid', $wholesaler_uid)->first();
+        // $contact_mail = WebsiteInformation::where('id', 1)->value('contact_mail');
+        $contact_mail = 'programmer.emad7867@gmail.com';
 
         $company_name = $request['company_name'];
         $businessType = $request['businessType'];
         $industryFocus = $request['industryFocus'];
         $country = $request['country'];
         $category = $request['category'];
+
+        if ($wholesaler->company_name == '' || $wholesaler->company_name == null) {
+            $data = [
+                'brandname' => config('app.name'),
+                'useremail' => $wholesaler->email,
+                'company_name' => $company_name,
+                'registered_at' => $wholesaler->created_at,
+                'usertype' => 'wholesaler',
+            ];
+
+            Mail::send('mail.new_wholesaler_notify_admin', $data, function ($message) use ($contact_mail) {
+                $message->to($contact_mail)->subject("New Wholesaler Registered To System");
+            });
+        }
 
         $wholesaler->company_name = $company_name;
         $wholesaler->business_type = $businessType;
@@ -289,28 +307,30 @@ class CredentialsController extends Controller
         $email = $request['email'];
         $password = $request['password'];
         $wholesaler = Wholesaler::where('email', $email)->first();
-        $creation_with = $wholesaler->creation_with;
         if ($wholesaler) {
-            if (password_verify($password, $wholesaler->password)) {
-                if ($wholesaler->status == 3) {
-                    return redirect()->back()->with('error', 'Your account has been restricted. Please contact support for more information.')->with('email', $email)->with('password', $password);
-                } elseif ($wholesaler->status == 0) {
-                    return redirect()->back()->with('error', 'Your account is not yet activated. Please check your email for the activation link.')->with('email', $email)->with('password', $password);
+            $creation_with = $wholesaler->creation_with;
+            if ($creation_with == 'general') {
+                if (password_verify($password, $wholesaler->password)) {
+                    if ($wholesaler->status == 3) {
+                        return redirect()->back()->with('error', 'Your account has been restricted. Please contact support for more information.')->with('email', $email)->with('password', $password);
+                    } elseif ($wholesaler->status == 0) {
+                        return redirect()->back()->with('error', 'Your account is not yet activated. Please check your email for the activation link.')->with('email', $email)->with('password', $password);
+                    } else {
+                        Auth::guard('wholesaler')->login($wholesaler);
+                        return redirect('/')->with('success', 'Logged In Successful!');
+                    }
                 } else {
-                    Auth::guard('wholesaler')->login($wholesaler);
-                    return redirect('/')->with('success', 'Logged In Successful!');
+                    return redirect()->back()->with('error_password', 'Password did not match')->with('email', $email)->with('password', $password);
                 }
             } else {
-                return redirect()->back()->with('error_password', 'Password did not match')->with('email', $email)->with('password', $password);
+                if ($creation_with == 'google') {
+                    return redirect('/wholesaler/login')->with('error', 'You already have an account with this email: ' . $email . ' with Google. Try logging with Google!');
+                } elseif ($creation_with == 'kakao') {
+                    return redirect('/wholesaler/login')->with('error', 'You already have an account with this email: ' . $email . ' with Kakao. Try logging with Kakao Talk!');
+                }
             }
         } else {
-            if ($creation_with == 'google') {
-                return redirect('/wholesaler/login')->with('error', 'You already have an account with this email: ' . $email . ' with Google. Try logging with Google!');
-            } elseif ($creation_with == 'kakao') {
-                return redirect('/wholesaler/login')->with('error', 'You already have an account with this email: ' . $email . ' with Kakao. Try logging with Kakao Talk!');
-            } else {
-                return redirect()->back()->with('error_email', 'Email did not match')->with('email', $email)->with('password', $password);
-            }
+            return redirect()->back()->with('error_email', 'Email did not match')->with('email', $email)->with('password', $password);
         }
     }
 

@@ -300,10 +300,10 @@
                                 please contact our support team.
                             </p>
                             <div class="flex space-x-4">
-                                <a href="mailto:support@example.com" class="text-blue-600 hover:text-blue-800 font-medium">
+                                <a href="mailto:{{$contact_mail}}" class="text-blue-600 hover:text-blue-800 font-medium">
                                     Email Support
                                 </a>
-                                <a href="tel:+1234567890" class="text-blue-600 hover:text-blue-800 font-medium">
+                                <a href="tel:{{$contact_phone}}" class="text-blue-600 hover:text-blue-800 font-medium">
                                     Call Support
                                 </a>
                             </div>

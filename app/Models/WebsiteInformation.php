@@ -18,6 +18,11 @@ class WebsiteInformation extends Model
         'PAYPAL_SECRET',
         'PAYPAL_MODE',
 
+        'TOSS_CLIENT_KEY',
+        'TOSS_SECRET_KEY',
+        'stripe_client_id',
+        'stripe_secret_key',
+
         'google_client_id',
         'google_client_secret',
         'kakao_client_id',

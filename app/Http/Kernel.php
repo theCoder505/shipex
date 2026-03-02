@@ -69,5 +69,6 @@ class Kernel extends HttpKernel
         'manufacturer_or_wholesaler' => \App\Http\Middleware\ManufacturerOrWholesaler::class,
         'approved_manufacturer' => \App\Http\Middleware\ValidManufacturerMiddleware::class,
         'admin' => \App\Http\Middleware\AdminMiddleware::class,
+        'statistics' => \App\Http\Middleware\StatisticsMiddleware::class,
     ];
 }

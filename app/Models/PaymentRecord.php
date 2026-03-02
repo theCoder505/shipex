@@ -12,12 +12,25 @@ class PaymentRecord extends Model
     protected $fillable = [
         'manufacturer_uid',
 
-        // PayPal fields (REPLACE stripe fields)
+        // PayPal
         'paypal_payment_id',
         'paypal_payer_id',
         'paypal_order_id',
         'paypal_transaction_id',
+        'paypal_response',
 
+        // TOSS
+        'toss_payment_key',
+        'toss_order_id',
+        'toss_transaction_id',
+        'toss_response',
+
+        // Stripe
+        'stripe_payment_id',
+        'stripe_session_id',
+        'stripe_response',
+
+        // Common
         'package_type',
         'amount',
         'currency',
@@ -27,48 +40,59 @@ class PaymentRecord extends Model
         'billing_email',
         'billing_phone',
         'billing_address',
-        'payment_method', // Will be 'paypal'
-        'paypal_response',
+        'payment_method',
         'payment_date',
-        'subscription_end_date', // CHANGED from next_billing_date
+        'subscription_end_date',
     ];
 
     protected $casts = [
-        'amount' => 'decimal:2',
-        'paypal_response' => 'array', // CHANGED from stripe_response
-        'payment_date' => 'datetime',
-        'subscription_end_date' => 'datetime', // CHANGED
+        'amount'                => 'decimal:2',
+        'paypal_response'       => 'array',
+        'toss_response'         => 'array',
+        'stripe_response'       => 'array',
+        'payment_date'          => 'datetime',
+        'subscription_end_date' => 'datetime',
     ];
 
-    /**
-     * Relationship with manufacturer
-     */
     public function manufacturer()
     {
         return $this->belongsTo(Manufacturer::class, 'manufacturer_uid', 'manufacturer_uid');
     }
 
-    /**
-     * Scope for active subscriptions
-     */
     public function scopeActive($query)
     {
-        return $query->where('payment_status', 'active');
+        return $query->where('payment_status', 'completed');
     }
 
-    /**
-     * Get formatted amount with currency
-     */
-    public function getFormattedAmountAttribute()
+    public function getFormattedAmountAttribute(): string
     {
-        return $this->currency . ' ' . number_format($this->amount, 2);
+        $symbol = match (strtolower($this->currency)) {
+            'usd'   => '$',
+            'krw'   => '₩',
+            'eur'   => '€',
+            default => strtoupper($this->currency) . ' ',
+        };
+
+        $formatted = $this->currency === 'krw'
+            ? number_format($this->amount, 0)
+            : number_format($this->amount, 2);
+
+        return $symbol . $formatted;
     }
 
-    /**
-     * Check if payment is successful
-     */
-    public function getIsSuccessfulAttribute()
+    public function getIsSuccessfulAttribute(): bool
     {
-        return in_array($this->payment_status, ['active', 'trialing']);
+        return in_array($this->payment_status, ['completed', 'active', 'trialing']);
+    }
+
+    public function getPaymentMethodLabelAttribute(): string
+    {
+        return match ($this->payment_method) {
+            'paypal' => 'PayPal',
+            'toss'   => 'TOSS',
+            'stripe' => 'Stripe',
+            'coupon' => 'Coupon',
+            default  => ucfirst($this->payment_method),
+        };
     }
 }

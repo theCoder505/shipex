@@ -11,6 +11,12 @@
             <span class="font-medium">Dashboard</span>
         </a>
 
+        <a href="/admin/statistics"
+            class="flex items-center gap-3 px-4 py-3 text-gray-700 dark:text-gray-300 hover:bg-blue-50 dark:hover:bg-gray-800 rounded-lg transition-colors statistics sidebar_tab">
+            <i class="fas fa-chart-line w-5"></i>
+            <span class="font-medium">Statistics</span>
+        </a>
+
 
         <a href="/admin/users/manufacturers"
             class="flex items-center gap-3 px-4 py-3 text-gray-700 dark:text-gray-300 hover:bg-blue-50 dark:hover:bg-gray-800 rounded-lg transition-colors manufacturers sidebar_tab">

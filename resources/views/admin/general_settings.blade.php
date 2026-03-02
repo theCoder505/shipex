@@ -170,6 +170,67 @@
             </div>
         </div>
 
+
+        <!-- Stripe Payment Settings -->
+        <div class="mb-8">
+            <h2
+                class="text-lg font-semibold text-gray-900 dark:text-white mb-4 pb-2 border-b border-gray-200 dark:border-gray-800">
+                Stripe Payment Settings
+            </h2>
+
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                <div>
+                    <label for="stripe_client_id" class="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">
+                        Stripe CLIENT ID
+                    </label>
+                    <input type="text" id="stripe_client_id" name="stripe_client_id"
+                        value="{{ $settings->stripe_client_id ?? '' }}"
+                        class="w-full px-4 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-800 dark:text-white"
+                        placeholder="Client ID Here..." />
+                </div>
+
+                <div>
+                    <label for="stripe_secret_key" class="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">
+                        Stripe SECRET KEY
+                    </label>
+                    <input type="text" id="stripe_secret_key" name="stripe_secret_key"
+                        value="{{ $settings->stripe_secret_key ?? '' }}"
+                        class="w-full px-4 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-800 dark:text-white"
+                        placeholder="Secret Key Here..." />
+                </div>
+            </div>
+        </div>
+        
+        <!-- TOSS Payment Settings -->
+        <div class="mb-8">
+            <h2
+                class="text-lg font-semibold text-gray-900 dark:text-white mb-4 pb-2 border-b border-gray-200 dark:border-gray-800">
+                TOSS Payment Settings
+            </h2>
+
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                <div>
+                    <label for="TOSS_CLIENT_KEY" class="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">
+                        TOSS CLIENT KEY
+                    </label>
+                    <input type="text" id="TOSS_CLIENT_KEY" name="TOSS_CLIENT_KEY"
+                        value="{{ $settings->TOSS_CLIENT_KEY ?? '' }}"
+                        class="w-full px-4 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-800 dark:text-white"
+                        placeholder="Client Key Here..." />
+                </div>
+
+                <div>
+                    <label for="TOSS_SECRET_KEY" class="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">
+                        TOSS SECRET KEY
+                    </label>
+                    <input type="text" id="TOSS_SECRET_KEY" name="TOSS_SECRET_KEY"
+                        value="{{ $settings->TOSS_SECRET_KEY ?? '' }}"
+                        class="w-full px-4 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-800 dark:text-white"
+                        placeholder="Secret Key Here..." />
+                </div>
+            </div>
+        </div>
+
         <!-- Paypal Payment Settings -->
         <div class="mb-8">
             <h2
@@ -212,7 +273,8 @@
 
 
                 <div>
-                    <label for="monthly_fee_amount" class="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">
+                    <label for="monthly_fee_amount"
+                        class="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">
                         Original Monthly Amount
                     </label>
                     <input type="number" min="1" id="monthly_fee_amount" name="monthly_fee_amount"

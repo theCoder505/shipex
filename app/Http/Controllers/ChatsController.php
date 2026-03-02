@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Jobs\SendMessageNotificationEmail;
 use App\Models\Chat;
 use App\Models\Manufacturer;
 use App\Models\Wholesaler;
@@ -12,7 +13,6 @@ use Illuminate\Support\Facades\Storage;
 use Intervention\Image\Laravel\Facades\Image;
 use GuzzleHttp\Client;
 use Exception;
-use Illuminate\Support\Facades\Mail;
 
 class ChatsController extends Controller
 {
@@ -279,50 +279,16 @@ class ChatsController extends Controller
             }
         }
 
-        // Send email notification if this is the first message
-        if ($isFirstMessage) {
-            try {
-                if ($sender_type == 'wholesaler') {
-                    $receiver = Manufacturer::where('manufacturer_uid', $sending_to)->first();
-                    $receiver_email = $receiver->email ?? null;
-                    $receiver_name = $receiver->company_name_en ?? 'Manufacturer';
-                    $brandname = 'Shipex';
-                    $contact_mail = 'support@shipex.co.kr';
-                } else {
-                    // Sender is manufacturer, receiver is wholesaler
-                    $receiver = Wholesaler::where('wholesaler_uid', $sending_to)->first();
-                    $receiver_email = $receiver->email ?? null;
-                    $receiver_name = $receiver->company_name ?? 'Wholesaler';
-                    $brandname = 'Shipex';
-                    $contact_mail = 'support@shipex.co.kr';
-                }
-
-                if ($receiver_email) {
-                    $data = [
-                        'brandname' => $brandname,
-                        'receiver_name' => $receiver_name,
-                        'sender_name' => $sender_name,
-                        'sender_type' => $sender_type,
-                        'message_preview' => \Illuminate\Support\Str::limit($message_box, 100),
-                        'chat_url' => secure_url($sender_type . '/chats'),
-                        'contact_mail' => $contact_mail
-                    ];
-
-                    Mail::send('mail.message_notification', $data, function ($message) use ($receiver_email, $sender_name) {
-                        $message->to($receiver_email)
-                            ->subject("New conversation started with {$sender_name}");
-                    });
-
-                    Log::info('First message email sent', [
-                        'sender' => $sent_by,
-                        'receiver' => $sending_to,
-                        'receiver_email' => $receiver_email
-                    ]);
-                }
-            } catch (\Exception $e) {
-                Log::error('Failed to send first message email: ' . $e->getMessage());
-            }
-        }
+        // Dispatch email notification to queue — zero latency for the sender
+        SendMessageNotificationEmail::dispatch(
+            $sent_by,
+            $sending_to,
+            $sender_type,
+            $sender_name,
+            $isFirstMessage,
+            'text',
+            $message_box
+        );
 
         return response()->json([
             'status' => 'success',
@@ -344,9 +310,13 @@ class ChatsController extends Controller
 
         if (Auth::guard('wholesaler')->check()) {
             $sent_by = Auth::guard('wholesaler')->user()->wholesaler_uid;
+            $sender_type = 'wholesaler';
+            $sender_name = Auth::guard('wholesaler')->user()->company_name;
             $user_folder = 'wholesaler_' . $sent_by;
         } else {
             $sent_by = Auth::guard('manufacturer')->user()->manufacturer_uid;
+            $sender_type = 'manufacturer';
+            $sender_name = Auth::guard('manufacturer')->user()->company_name_en;
             $user_folder = 'manufacturer_' . $sent_by;
         }
 
@@ -397,6 +367,15 @@ class ChatsController extends Controller
         // Determine seen status - if both are chatting, mark as seen immediately
         $seenStatus = $bothUsersChatting ? 1 : 0;
 
+        // Check if this is the first message between these users
+        $isFirstMessage = !Chat::where(function ($query) use ($sent_by, $sending_to) {
+            $query->where('sent_by', $sent_by)
+                ->where('sent_to', $sending_to);
+        })->orWhere(function ($query) use ($sent_by, $sending_to) {
+            $query->where('sent_by', $sending_to)
+                ->where('sent_to', $sent_by);
+        })->exists();
+
         // Save to database
         $chat = Chat::create([
             'message_uid' => $message_uid,
@@ -427,6 +406,18 @@ class ChatsController extends Controller
                 // Don't fail the entire request if WebSocket fails
             }
         }
+
+        // Dispatch email notification to queue — zero latency for the sender
+        SendMessageNotificationEmail::dispatch(
+            $sent_by,
+            $sending_to,
+            $sender_type,
+            $sender_name,
+            $isFirstMessage,
+            'file',
+            $message_text ?: 'No additional message.',
+            $fileData
+        );
 
         return response()->json([
             'status' => 'success',
