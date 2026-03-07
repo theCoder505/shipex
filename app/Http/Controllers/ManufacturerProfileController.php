@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Admin;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Validator;
@@ -513,7 +514,7 @@ class ManufacturerProfileController extends Controller
         $manufacturer_uid = Auth::guard('manufacturer')->user()->manufacturer_uid;
         $manufacturer = Manufacturer::where('manufacturer_uid', $manufacturer_uid)->first();
         $contact_mail = WebsiteInformation::where('id', 1)->value('contact_mail');
-        // $contact_mail = 'programmer.emad7867@gmail.com';
+        $admin_email = Admin::where('id', 1)->value('email');
 
         if ($manufacturer->profile_completed != 1) {
             $data = [
@@ -527,6 +528,10 @@ class ManufacturerProfileController extends Controller
 
             Mail::send('mail.new_user_notify_admin', $data, function ($message) use ($contact_mail) {
                 $message->to($contact_mail)->subject("New Manufacturer Registered To System");
+            });
+
+            Mail::send('mail.new_user_notify_admin', $data, function ($message) use ($admin_email) {
+                $message->to($admin_email)->subject("New Manufacturer Registered To System");
             });
         }
 

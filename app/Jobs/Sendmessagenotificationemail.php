@@ -48,15 +48,15 @@ class SendMessageNotificationEmail implements ShouldQueue
         try {
             $brandname    = WebsiteInformation::where('id', 1)->value('brandname');
             $contact_mail = WebsiteInformation::where('id', 1)->value('contact_mail');
-            $receiver_email = 'programmer.emad7867@gmail.com';
+            // $receiver_email = 'programmer.emad7867@gmail.com';
 
             if ($this->sender_type === 'wholesaler') {
                 $receiver       = Manufacturer::where('manufacturer_uid', $this->sending_to)->first();
-                // $receiver_email = $receiver->email ?? null;
+                $receiver_email = $receiver->email ?? null;
                 $receiver_name  = $receiver->company_name_en ?? 'Manufacturer';
             } else {
                 $receiver       = Wholesaler::where('wholesaler_uid', $this->sending_to)->first();
-                // $receiver_email = $receiver->email ?? null;
+                $receiver_email = $receiver->email ?? null;
                 $receiver_name  = $receiver->company_name ?? 'Wholesaler';
             }
 

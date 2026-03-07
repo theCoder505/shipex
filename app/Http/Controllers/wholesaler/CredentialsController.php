@@ -3,6 +3,8 @@
 namespace App\Http\Controllers\wholesaler;
 
 use App\Http\Controllers\Controller;
+use App\Models\Admin;
+use App\Models\WebsiteInformation;
 use App\Models\Wholesaler;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -239,8 +241,8 @@ class CredentialsController extends Controller
     {
         $wholesaler_uid = Auth::guard('wholesaler')->user()->wholesaler_uid;
         $wholesaler = Wholesaler::where('wholesaler_uid', $wholesaler_uid)->first();
-        // $contact_mail = WebsiteInformation::where('id', 1)->value('contact_mail');
-        $contact_mail = 'programmer.emad7867@gmail.com';
+        $contact_mail = WebsiteInformation::where('id', 1)->value('contact_mail');
+        $admin_email = Admin::where('id', 1)->value('email');
 
         $company_name = $request['company_name'];
         $businessType = $request['businessType'];
@@ -259,6 +261,10 @@ class CredentialsController extends Controller
 
             Mail::send('mail.new_wholesaler_notify_admin', $data, function ($message) use ($contact_mail) {
                 $message->to($contact_mail)->subject("New Wholesaler Registered To System");
+            });
+
+            Mail::send('mail.new_wholesaler_notify_admin', $data, function ($message) use ($admin_email) {
+                $message->to($admin_email)->subject("New Wholesaler Registered To System");
             });
         }
 
