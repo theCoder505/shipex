@@ -66,6 +66,7 @@ class Kernel extends HttpKernel
         'verified' => \Illuminate\Auth\Middleware\EnsureEmailIsVerified::class,
         'wholesaler' => \App\Http\Middleware\WholesalerMiddleware::class,
         'manufacturer' => \App\Http\Middleware\ManufacturerLoggedIn::class,
+        'just_manufacturer' => \App\Http\Middleware\JustManufacturer::class,
         'manufacturer_or_wholesaler' => \App\Http\Middleware\ManufacturerOrWholesaler::class,
         'approved_manufacturer' => \App\Http\Middleware\ValidManufacturerMiddleware::class,
         'admin' => \App\Http\Middleware\AdminMiddleware::class,

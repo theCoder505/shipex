@@ -8,6 +8,8 @@
 
 @section('content')
     <section class="main mx-auto px-4 lg:px-8 max-w-[1600px] py-8">
+        @include('includes.warning')
+        
         <input type="hidden" class="current_step" value="{{ $step }}">
         <div class="steps pb-3">
             <div class="step_one step_line @if ($step >= 1) active_step @endif @if ($step > 1) completed_step @endif"></div>

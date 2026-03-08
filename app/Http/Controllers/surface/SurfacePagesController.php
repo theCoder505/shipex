@@ -39,9 +39,15 @@ class SurfacePagesController extends Controller
 
 
 
+
     public function indexPage()
     {
         $show_type = 'all';
+        $manufacturer = [];
+
+        $autoVisibilityManufacturers = Manufacturer::where('auto_visibility', 1)
+            ->orderBy('rating', 'DESC')
+            ->get();
 
         if (Auth::guard('wholesaler')->check()) {
             $wholesaler_id = Auth::guard('wholesaler')->user()->wholesaler_uid;
@@ -77,34 +83,54 @@ class SurfacePagesController extends Controller
                     ->orderBy('rating', 'DESC')
                     ->get();
 
-                // Combine: preferred manufacturers first, then all others
-                $manufacturers = $preferredManufacturers->merge($otherManufacturers);
-                $tot_menufacturers = Manufacturer::where('status', 5)
-                    ->where('subscription', 1)
-                    ->where('subscription_end_date', '>', Carbon::now())
-                    ->count();
+                $manufacturers = $preferredManufacturers
+                    ->merge($otherManufacturers)
+                    ->merge($autoVisibilityManufacturers)
+                    ->unique('id');
+
+                $tot_menufacturers = Manufacturer::where(function ($query) {
+                    $query->where(function ($q) {
+                        $q->where('status', 5)
+                            ->where('subscription', 1)
+                            ->where('subscription_end_date', '>', Carbon::now());
+                    })->orWhere(function ($q) {
+                        $q->where('auto_visibility', 1);
+                    });
+                })->distinct()->count();
             } else {
-                // If no categories, show all manufacturers with active subscription
-                $manufacturers = Manufacturer::where('status', 5)
+                $subscriptionManufacturers = Manufacturer::where('status', 5)
                     ->where('subscription', 1)
                     ->where('subscription_end_date', '>', Carbon::now())
                     ->orderBy('rating', 'DESC')
                     ->get();
+
+                $manufacturers = $subscriptionManufacturers
+                    ->merge($autoVisibilityManufacturers)
+                    ->unique('id');
+
                 $tot_menufacturers = $manufacturers->count();
             }
         } else {
-            // For non-logged in users, show all manufacturers with active subscription
-            $manufacturers = Manufacturer::where('status', 5)
+            $subscriptionManufacturers = Manufacturer::where('status', 5)
                 ->where('subscription', 1)
                 ->where('subscription_end_date', '>', Carbon::now())
                 ->orderBy('rating', 'DESC')
                 ->get();
+
+            $manufacturers = $subscriptionManufacturers
+                ->merge($autoVisibilityManufacturers)
+                ->unique('id');
+
             $tot_menufacturers = $manufacturers->count();
         }
 
-        return view('surface.index', compact('manufacturers', 'tot_menufacturers', 'show_type'));
-    }
+        if (Auth::guard('manufacturer')->check()) {
+            $manufacturer_uid = Auth::guard('manufacturer')->user()->manufacturer_uid;
+            $manufacturer = Manufacturer::where('manufacturer_uid', $manufacturer_uid)->first();
+        }
 
+        return view('surface.index', compact('manufacturers', 'tot_menufacturers', 'show_type', 'manufacturer'));
+    }
 
 
 
@@ -208,9 +234,24 @@ class SurfacePagesController extends Controller
                 $hasActiveFilters = true;
             }
 
-            // If no active filters, return all manufacturers with active subscription
+            $autoVisibilityQuery = Manufacturer::where('auto_visibility', 1);
+
+            if ($request->filled('search')) {
+                $search = $request->search;
+                $autoVisibilityQuery->where(function ($q) use ($search) {
+                    $q->where('company_name_en', 'LIKE', "%{$search}%")
+                        ->orWhere('company_name_ko', 'LIKE', "%{$search}%")
+                        ->orWhere('business_introduction', 'LIKE', "%{$search}%")
+                        ->orWhere('main_product_category', 'LIKE', "%{$search}%")
+                        ->orWhere('industry_category', 'LIKE', "%{$search}%")
+                        ->orWhere('contact_name', 'LIKE', "%{$search}%");
+                });
+            }
+
+            $autoVisibilityManufacturers = $autoVisibilityQuery->orderBy('rating', 'DESC')->get();
+
             if (!$hasActiveFilters) {
-                $manufacturers = Manufacturer::where('status', 5)
+                $subscriptionManufacturers = Manufacturer::where('status', 5)
                     ->where('subscription', 1)
                     ->where('subscription_end_date', '>', Carbon::now())
                     ->orderBy('rating', 'DESC')
@@ -218,10 +259,16 @@ class SurfacePagesController extends Controller
                     ->get();
             } else {
                 // Apply the query with active subscription filter
-                $manufacturers = $query->orderBy('rating', 'DESC')
+                $subscriptionManufacturers = $query->orderBy('rating', 'DESC')
                     ->orderBy('created_at', 'DESC')
                     ->get();
             }
+
+            $manufacturers = $subscriptionManufacturers
+                ->merge($autoVisibilityManufacturers)
+                ->unique('id')
+                ->sortByDesc('rating')
+                ->values();
 
             // Transform the data for frontend
             $transformedManufacturers = $manufacturers->map(function ($manufacturer) {
@@ -247,6 +294,7 @@ class SurfacePagesController extends Controller
                     'standards' => $manufacturer->standards,
                     'factory_pictures' => $manufacturer->factory_pictures,
                     'products' => $manufacturer->products,
+                    'auto_visibility' => $manufacturer->auto_visibility,
                     'created_at' => $manufacturer->created_at,
                     'updated_at' => $manufacturer->updated_at,
                 ];
@@ -282,12 +330,20 @@ class SurfacePagesController extends Controller
                 ], 500);
             }
 
-            // Fallback to all manufacturers with active subscription on error
-            $manufacturers = Manufacturer::where('status', 5)
+            $subscriptionManufacturers = Manufacturer::where('status', 5)
                 ->where('subscription', 1)
                 ->where('subscription_end_date', '>', Carbon::now())
                 ->orderBy('rating', 'DESC')
                 ->get();
+
+            $autoVisibilityManufacturers = Manufacturer::where('auto_visibility', 1)
+                ->orderBy('rating', 'DESC')
+                ->get();
+
+            $manufacturers = $subscriptionManufacturers
+                ->merge($autoVisibilityManufacturers)
+                ->unique('id')
+                ->values();
 
             return view('surface.index', [
                 'manufacturers' => $manufacturers,
@@ -301,19 +357,32 @@ class SurfacePagesController extends Controller
 
 
 
-
     public function manufacturersPage()
     {
-        $manufacturers = Manufacturer::where('status', 5)
+        $subscriptionManufacturers = Manufacturer::where('status', 5)
             ->where('subscription', 1)
             ->where('subscription_end_date', '>', Carbon::now())
             ->orderBy('rating', 'DESC')
             ->get();
 
+        $autoVisibilityManufacturers = Manufacturer::where('auto_visibility', 1)
+            ->orderBy('rating', 'DESC')
+            ->get();
+
+        $manufacturers = $subscriptionManufacturers
+            ->merge($autoVisibilityManufacturers)
+            ->unique('id');
+
         $tot_menufacturers = $manufacturers->count();
         $show_type = 'all';
+        $manufacturer = [];
 
-        return view('surface.manufacturers', compact('manufacturers', 'tot_menufacturers', 'show_type'));
+        if (Auth::guard('manufacturer')->check()) {
+            $manufacturer_uid = Auth::guard('manufacturer')->user()->manufacturer_uid;
+            $manufacturer = Manufacturer::where('manufacturer_uid', $manufacturer_uid)->first();
+        }
+
+        return view('surface.manufacturers', compact('manufacturers', 'tot_menufacturers', 'show_type', 'manufacturer'));
     }
 
 
@@ -379,8 +448,37 @@ class SurfacePagesController extends Controller
 
     public function specManufacturer($manufacturer_name, $manufacturer_uid)
     {
-        $spec_manufacturer = Manufacturer::where('manufacturer_uid', $manufacturer_uid)->first();
-        $manufacturers = Manufacturer::orderBy('rating', 'DESC')->where('manufacturer_uid', '!=', $manufacturer_uid)->where('status', 5)->where('subscription', 1)->limit(10)->get();
+        $spec_manufacturer = Manufacturer::where('manufacturer_uid', $manufacturer_uid)->firstOrFail();
+
+        $hasActiveSubscription = $spec_manufacturer->status == 5
+            && $spec_manufacturer->subscription == 1
+            && $spec_manufacturer->subscription_end_date > Carbon::now();
+
+        $isAutoVisible = $spec_manufacturer->auto_visibility == 1;
+
+        if (!$hasActiveSubscription && !$isAutoVisible) {
+            abort(404);
+        }
+
+        // related manufacturers
+        $subscriptionManufacturers = Manufacturer::orderBy('rating', 'DESC')
+            ->where('manufacturer_uid', '!=', $manufacturer_uid)
+            ->where('status', 5)
+            ->where('subscription', 1)
+            ->where('subscription_end_date', '>', Carbon::now())
+            ->limit(10)
+            ->get();
+
+        $autoVisibilityManufacturers = Manufacturer::where('auto_visibility', 1)
+            ->where('manufacturer_uid', '!=', $manufacturer_uid)
+            ->orderBy('rating', 'DESC')
+            ->get();
+
+        $manufacturers = $subscriptionManufacturers
+            ->merge($autoVisibilityManufacturers)
+            ->unique('id')
+            ->take(10);
+
         $tot_menufacturers = Manufacturer::orderBy('rating', 'DESC')->count();
         $show_type = 'limited';
         $wholesalers = Wholesaler::all();
@@ -398,6 +496,12 @@ class SurfacePagesController extends Controller
             }
         }
 
+        $manufacturer = [];
+        if (Auth::guard('manufacturer')->check()) {
+            $manufacturer_uid = Auth::guard('manufacturer')->user()->manufacturer_uid;
+            $manufacturer = Manufacturer::where('manufacturer_uid', $manufacturer_uid)->first();
+        }
+
         return view('surface.specific_menufacturer', compact(
             'manufacturer_name',
             'manufacturer_uid',
@@ -408,7 +512,8 @@ class SurfacePagesController extends Controller
             'certificates',
             'reviews',
             'show_type',
-            'wholesalers'
+            'wholesalers',
+            'manufacturer'
         ));
     }
 

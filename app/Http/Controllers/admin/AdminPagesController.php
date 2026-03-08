@@ -44,6 +44,22 @@ class AdminPagesController extends Controller
 
 
 
+    public function autoVisibilityStatus(Request $request){
+        $manufacturer_uid = $request['manufacturer_uid'];
+        $auto_visibility = $request['auto_visibility'];
+        if ($auto_visibility) {
+            $auto_visibility = 1;
+        }else{
+            $auto_visibility = 0;
+        }
+        $manufacturer = Manufacturer::where('manufacturer_uid', $manufacturer_uid)->first();
+        $manufacturer->auto_visibility = $auto_visibility;
+        $manufacturer->save();
+        return redirect()->back()->with('success', 'Manufacturer, UID: ' . $manufacturer_uid . ' Auto-Visbility Status Updated!');
+    }
+
+
+
 
     public function changeManufacturerStatus(Request $request)
     {

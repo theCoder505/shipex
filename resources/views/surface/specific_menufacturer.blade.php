@@ -158,6 +158,8 @@
 
 @section('content')
     <div class="hero_section my-4 px-4 lg:px-8 max-w-[1600px] mx-auto">
+        @include('includes.warning')
+        
         <div class="flex gap-4 items-center">
             <a href="/manufacturers" class="text-[#46484D] dark:text-gray-300">All manufacturers</a>
             <i class="fa fa-chevron-right text-[#46484D] dark:text-gray-300"></i>

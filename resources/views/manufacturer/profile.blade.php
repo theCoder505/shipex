@@ -156,13 +156,15 @@
 
 @section('content')
     <div class="hero_section my-4 px-4 lg:px-8 max-w-[1600px] mx-auto">
+        @include('includes.warning')
+
         <div class="w-full flex gap-4 justify-between items-center">
             <div>
                 <div class="text-[#46484D] text-xl lg:text-[40px]">Personal Space</div>
-                <div class="text-[#46484D]">{{ $profile_data->name }}</div>
+                <div class="text-[#46484D]">{{ $manufacturer->name }}</div>
             </div>
             <div>
-                @php $status = $profile_data->status ?? null; @endphp
+                @php $status = $manufacturer->status ?? null; @endphp
 
                 @if ($status == 1)
                     <button type="button"
@@ -183,7 +185,7 @@
                         Approved Profile
                     </button>
                 @else
-                    <div class="text-[#46484D]">Verification Status: {{ $profile_data->status }}</div>
+                    <div class="text-[#46484D]">Verification Status: {{ $manufacturer->status }}</div>
                 @endif
             </div>
         </div>
@@ -235,34 +237,34 @@
                         <div class="review-content grid grid-cols-1 gap-4 lg:grid-cols-2">
                             <div class="grid grid-cols-1 gap-2 w-full">
                                 <div class="review-label">Company name (English):</div>
-                                <div class="review-value">{{ $profile_data->company_name_en ?? '-' }}</div>
+                                <div class="review-value">{{ $manufacturer->company_name_en ?? '-' }}</div>
                             </div>
                             <div class="grid grid-cols-1 gap-2 w-full">
                                 <div class="review-label">Company name (Korean):</div>
-                                <div class="review-value">{{ $profile_data->company_name_ko ?? '-' }}</div>
+                                <div class="review-value">{{ $manufacturer->company_name_ko ?? '-' }}</div>
                             </div>
                             <div class="grid grid-cols-1 gap-2 w-full">
                                 <div class="review-label">Company address (English):</div>
-                                <div class="review-value">{{ $profile_data->company_address_en ?? '-' }}</div>
+                                <div class="review-value">{{ $manufacturer->company_address_en ?? '-' }}</div>
                             </div>
                             <div class="grid grid-cols-1 gap-2 w-full">
                                 <div class="review-label">Company address (Korean):</div>
-                                <div class="review-value">{{ $profile_data->company_address_ko ?? '-' }}</div>
+                                <div class="review-value">{{ $manufacturer->company_address_ko ?? '-' }}</div>
                             </div>
                             <div class="grid grid-cols-1 gap-2 w-full">
                                 <div class="review-label">Year established:</div>
-                                <div class="review-value">{{ $profile_data->year_established ?? '-' }}</div>
+                                <div class="review-value">{{ $manufacturer->year_established ?? '-' }}</div>
                             </div>
                             <div class="grid grid-cols-1 gap-2 w-full">
                                 <div class="review-label">Business Registration Number:</div>
-                                <div class="review-value">{{ $profile_data->business_registration_number ?? '-' }}</div>
+                                <div class="review-value">{{ $manufacturer->business_registration_number ?? '-' }}</div>
                             </div>
 
                             <div class="grid grid-cols-1 gap-2 w-full">
                                 <div class="review-label">Business Registration License:</div>
                                 <div class="review-value">
-                                    @if ($profile_data->business_registration_license)
-                                        <img src="{{ asset($profile_data->business_registration_license) }}"
+                                    @if ($manufacturer->business_registration_license)
+                                        <img src="{{ asset($manufacturer->business_registration_license) }}"
                                             class="file-preview-small max-w-[200px] rounded border border-gray-200"
                                             alt="Business License">
                                     @else
@@ -273,19 +275,19 @@
 
                             <div class="grid grid-cols-1 gap-2 w-full">
                                 <div class="review-label">Primary Contact Name:</div>
-                                <div class="review-value">{{ $profile_data->contact_name ?? '-' }}</div>
+                                <div class="review-value">{{ $manufacturer->contact_name ?? '-' }}</div>
                             </div>
                             <div class="grid grid-cols-1 gap-2 w-full">
                                 <div class="review-label">Email address:</div>
-                                <div class="review-value">{{ $profile_data->contact_email ?? '-' }}</div>
+                                <div class="review-value">{{ $manufacturer->contact_email ?? '-' }}</div>
                             </div>
                             <div class="grid grid-cols-1 gap-2 w-full">
                                 <div class="review-label">Position:</div>
-                                <div class="review-value">{{ $profile_data->contact_position ?? '-' }}</div>
+                                <div class="review-value">{{ $manufacturer->contact_position ?? '-' }}</div>
                             </div>
                             <div class="grid grid-cols-1 gap-2 w-full">
                                 <div class="review-label">Phone Number:</div>
-                                <div class="review-value">{{ $profile_data->contact_phone ?? '-' }}</div>
+                                <div class="review-value">{{ $manufacturer->contact_phone ?? '-' }}</div>
                             </div>
                         </div>
                     </div>
@@ -318,11 +320,11 @@
                         <div class="review-content grid grid-cols-1 gap-4 lg:grid-cols-2">
                             <div class="grid grid-cols-1 gap-2 w-full">
                                 <div class="review-label">Business Types:</div>
-                                <div class="review-value">{{ $profile_data->business_type ?? '-' }}</div>
+                                <div class="review-value">{{ $manufacturer->business_type ?? '-' }}</div>
                             </div>
                             <div class="grid grid-cols-1 gap-2 w-full">
                                 <div class="review-label">Industry Categories:</div>
-                                <div class="review-value">{{ $profile_data->industry_category ?? '-' }}</div>
+                                <div class="review-value">{{ $manufacturer->industry_category ?? '-' }}</div>
                             </div>
                         </div>
                     </div>
@@ -354,15 +356,15 @@
                         <div class="review-content grid grid-cols-1 gap-4 lg:grid-cols-2">
                             <div class="grid grid-cols-1 gap-2 w-full">
                                 <div class="review-label">Main Product Categories:</div>
-                                <div class="review-value capitalize">{{ $profile_data->main_product_category ?? '-' }}
+                                <div class="review-value capitalize">{{ $manufacturer->main_product_category ?? '-' }}
                                 </div>
                             </div>
                             <div class="grid grid-cols-1 gap-2 w-full lg:col-span-2">
                                 <div class="review-label">Key Products:</div>
                                 <div class="review-value">
-                                    @if ($profile_data->products && count($profile_data->products) > 0)
+                                    @if ($manufacturer->products && count($manufacturer->products) > 0)
                                         <ul class="review-list space-y-3">
-                                            @foreach ($profile_data->products as $product)
+                                            @foreach ($manufacturer->products as $product)
                                                 <li
                                                     class="flex justify-between items-center py-2 border-b border-gray-100">
                                                     <span
@@ -415,9 +417,9 @@
                             <div class="grid grid-cols-1 gap-2 w-full lg:col-span-2">
                                 <div class="review-label">Certifications:</div>
                                 <div class="review-value">
-                                    @if ($profile_data->certifications && count($profile_data->certifications) > 0)
+                                    @if ($manufacturer->certifications && count($manufacturer->certifications) > 0)
                                         <ul class="review-list space-y-3">
-                                            @foreach ($profile_data->certifications as $certification)
+                                            @foreach ($manufacturer->certifications as $certification)
                                                 <li
                                                     class="flex justify-between items-center py-2 border-b border-gray-100">
                                                     <span
@@ -442,9 +444,9 @@
                             <div class="grid grid-cols-1 gap-2 w-full lg:col-span-2">
                                 <div class="review-label">Factory Pictures:</div>
                                 <div class="review-value">
-                                    @if ($profile_data->factory_pictures && count($profile_data->factory_pictures) > 0)
+                                    @if ($manufacturer->factory_pictures && count($manufacturer->factory_pictures) > 0)
                                         <div class="review-image-grid grid grid-cols-2 md:grid-cols-3 gap-4">
-                                            @foreach ($profile_data->factory_pictures as $picture)
+                                            @foreach ($manufacturer->factory_pictures as $picture)
                                                 <div class="review-image-item">
                                                     @if (isset($picture['image']))
                                                         <img src="{{ asset($picture['image']) }}"
@@ -494,16 +496,16 @@
                         <div class="review-content grid grid-cols-1 gap-4 lg:grid-cols-2">
                             <div class="grid grid-cols-1 gap-2 w-full">
                                 <div class="review-label">Agreed to Terms:</div>
-                                <div class="review-value">{{ $profile_data->agree_terms ? 'Yes' : 'No' }}</div>
+                                <div class="review-value">{{ $manufacturer->agree_terms ? 'Yes' : 'No' }}</div>
                             </div>
                             <div class="grid grid-cols-1 gap-2 w-full">
                                 <div class="review-label">Consent to Background Check:</div>
-                                <div class="review-value">{{ $profile_data->consent_background_check ? 'Yes' : 'No' }}
+                                <div class="review-value">{{ $manufacturer->consent_background_check ? 'Yes' : 'No' }}
                                 </div>
                             </div>
                             <div class="grid grid-cols-1 gap-2 w-full">
                                 <div class="review-label">Digital Signature:</div>
-                                <div class="review-value">{{ $profile_data->digital_signature ?? '-' }}</div>
+                                <div class="review-value">{{ $manufacturer->digital_signature ?? '-' }}</div>
                             </div>
                         </div>
                     </div>
@@ -513,7 +515,7 @@
 
                 <div>
                     <div class="sticky top-24">
-                        <a href="/manufacturers/{{ $profile_data->company_name_en }}/{{ $profile_data->manufacturer_uid }}"
+                        <a href="/manufacturers/{{ $manufacturer->company_name_en }}/{{ $manufacturer->manufacturer_uid }}"
                             class="float-right hover:text-white bg-blue-50 border border-[#003fb4] text-[#003fb4] flex items-center gap-2 rounded-lg px-4 py-3 hover:bg-[#003FB4] text-center transition-all duration-200">
                             See public profile <i class="fas fa-external-link-alt"></i>
                         </a>
@@ -531,7 +533,7 @@
                     <div class="flex justify-between gap-4 py-6 border-b border-[#BCBCBC]">
                         <div class="left">
                             <p class="text-xs">Email</p>
-                            <p class="text text-[#121212]">{{ $profile_data->email }}</p>
+                            <p class="text text-[#121212]">{{ $manufacturer->email }}</p>
                         </div>
                         <div class="right">
                             <button class="edit-btn" onclick="editEmailModal(this)">
@@ -566,9 +568,9 @@
                         <div class="left">
                             <p class="text-xs">Preferred Languages</p>
                             <p class="text-lg text-[#121212]">
-                                @if ($profile_data->language)
+                                @if ($manufacturer->language)
                                     @php
-                                        $languages = explode(',', $profile_data->language);
+                                        $languages = explode(',', $manufacturer->language);
                                         $formattedLangs = array_map(function ($lang) {
                                             return ucfirst(trim($lang));
                                         }, $languages);
@@ -1042,7 +1044,7 @@
             document.body.style.overflow = 'hidden';
 
             // Get current languages from the page
-            const currentLang = "{{ $profile_data->language ?? '' }}";
+            const currentLang = "{{ $manufacturer->language ?? '' }}";
             const currentLanguages = currentLang.split(',').map(l => l.trim().toLowerCase());
 
             // Pre-select options in the hidden select

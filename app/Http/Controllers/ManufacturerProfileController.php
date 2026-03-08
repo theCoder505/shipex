@@ -21,19 +21,15 @@ class ManufacturerProfileController extends Controller
         if ($step < 1 || $step > 6) {
             $step = 1;
         }
-
         $manufacturer_uid = Auth::guard('manufacturer')->user()->manufacturer_uid;
         $profile_data = Manufacturer::where('manufacturer_uid', $manufacturer_uid)->first();
-
         // If user tries to skip steps, redirect them to the next incomplete step
         $nextIncompleteStep = $this->getNextIncompleteStep($profile_data);
         if ($step > $nextIncompleteStep) {
             return redirect()->route('manufacturer.application.step', ['step' => $nextIncompleteStep]);
         }
-
-        $contact_mail = config('app.contact_email', 'support@example.com');
-
-        return view('surface.account.menufacturer_profile_complete', compact('profile_data', 'step', 'contact_mail'));
+        $manufacturer = Manufacturer::where('manufacturer_uid', $manufacturer_uid)->first();
+        return view('surface.account.menufacturer_profile_complete', compact('profile_data', 'step', 'manufacturer'));
     }
 
     /**

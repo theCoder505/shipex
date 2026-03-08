@@ -4,7 +4,6 @@ use App\Http\Controllers\admin\AdminCredentials;
 use App\Http\Controllers\admin\AdminPagesController;
 use App\Http\Controllers\ChatsController;
 use App\Http\Controllers\ManufacturerProfileController;
-use App\Http\Controllers\menufacturer\ManufacturerPagesController;
 use App\Http\Controllers\menufacturer\MenufacturerCredentialsController;
 use App\Http\Controllers\menufacturer\SubscriptionController;
 use App\Http\Controllers\SocialiteAuthConntroller;
@@ -132,15 +131,15 @@ Route::get('/wholesaler/auth/kakao-login-callback', [SocialKakaoLoginConntroller
 // Route::get('/manufacturer/application-successful', [MenufacturerCredentialsController::class, 'applicationSuccessful'])->middleware('manufacturer');
 
 // Manufacturer Profile Completion Routes
-Route::get('/manufacturer/application', [ManufacturerProfileController::class, 'showStep'])->name('manufacturer.application')->middleware('manufacturer')->middleware('statistics');
-Route::post('/manufacturer/application/step/{step}', [ManufacturerProfileController::class, 'saveStep'])->name('manufacturer.application.step.save')->middleware('manufacturer');
-Route::get('/manufacturer/application/step/{step}', [ManufacturerProfileController::class, 'showStep'])->name('manufacturer.application.step')->middleware('manufacturer');
-Route::post('/manufacturer/application/final-submit', [ManufacturerProfileController::class, 'finalSubmit'])->name('manufacturer.application.final.submit')->middleware('manufacturer');
-Route::get('/manufacturer/application-successful', [ManufacturerProfileController::class, 'applicationSuccessful'])->name('manufacturer.application.successful')->middleware('manufacturer');
+Route::get('/manufacturer/application', [ManufacturerProfileController::class, 'showStep'])->name('manufacturer.application')->middleware('just_manufacturer')->middleware('statistics');
+Route::post('/manufacturer/application/step/{step}', [ManufacturerProfileController::class, 'saveStep'])->name('manufacturer.application.step.save')->middleware('just_manufacturer');
+Route::get('/manufacturer/application/step/{step}', [ManufacturerProfileController::class, 'showStep'])->name('manufacturer.application.step')->middleware('just_manufacturer');
+Route::post('/manufacturer/application/final-submit', [ManufacturerProfileController::class, 'finalSubmit'])->name('manufacturer.application.final.submit')->middleware('just_manufacturer');
+Route::get('/manufacturer/application-successful', [ManufacturerProfileController::class, 'applicationSuccessful'])->name('manufacturer.application.successful')->middleware('just_manufacturer');
 
 
 
-Route::post('/manufacturer/logout', [MenufacturerCredentialsController::class, 'logoutManufacturer'])->middleware('manufacturer');
+Route::post('/manufacturer/logout', [MenufacturerCredentialsController::class, 'logoutManufacturer'])->middleware('just_manufacturer');
 
 Route::get('/manufacturer/forget-password', [MenufacturerCredentialsController::class, 'manufacturerForgetPwd'])->middleware('statistics')->name('Manufacturer Forget Password Page');
 Route::post('/manufacturer/forget-password-request', [MenufacturerCredentialsController::class, 'manufacturerForgetPwdRequest']);
@@ -183,11 +182,11 @@ Route::post('/manufacturer/cancel-subscription', [SubscriptionController::class,
 
 
 
-Route::get('/manufacturer/set-up-manufacturer-{page_type}', [ManufacturerPagesController::class, 'manufacturerProfilePage'])->middleware('manufacturer');
-Route::post('/manufacturer/change-email-address', [MenufacturerCredentialsController::class, 'changeEmailAddress'])->middleware('manufacturer');
-Route::post('/manufacturer/change-account-password', [MenufacturerCredentialsController::class, 'changeAccountPassword'])->middleware('manufacturer');
-Route::post('/manufacturer/change-language-selection', [MenufacturerCredentialsController::class, 'changeLanguageChoice'])->middleware('manufacturer');
-Route::post('/manufacturer/delete-account', [MenufacturerCredentialsController::class, 'deleteAccount'])->middleware('manufacturer');
+Route::get('/manufacturer/set-up-manufacturer-{page_type}', [MenufacturerCredentialsController::class, 'manufacturerProfilePage'])->middleware('just_manufacturer');
+Route::post('/manufacturer/change-email-address', [MenufacturerCredentialsController::class, 'changeEmailAddress'])->middleware('just_manufacturer');
+Route::post('/manufacturer/change-account-password', [MenufacturerCredentialsController::class, 'changeAccountPassword'])->middleware('just_manufacturer');
+Route::post('/manufacturer/change-language-selection', [MenufacturerCredentialsController::class, 'changeLanguageChoice'])->middleware('just_manufacturer');
+Route::post('/manufacturer/delete-account', [MenufacturerCredentialsController::class, 'deleteAccount'])->middleware('just_manufacturer');
 Route::get('/manufacturer/account-deleted', [MenufacturerCredentialsController::class, 'deletedAccountPage']);
 
 
@@ -240,6 +239,8 @@ Route::post('/admin/logout', [AdminCredentials::class, 'adminLogout']);
 
 Route::get('/admin/dashboard', [AdminPagesController::class, 'adminDashboard'])->middleware('admin');
 Route::get('/admin/users/manufacturers', [AdminPagesController::class, 'showManufacturers'])->middleware('admin');
+Route::post('/admin/auto-visibility-setup', [AdminPagesController::class, 'autoVisibilityStatus'])->middleware('admin');
+
 Route::post('/admin/users/manufacturers/change-status', [AdminPagesController::class, 'changeManufacturerStatus'])->middleware('admin');
 Route::get('/admin/manufacturers/{manufacturer_uid}/reviews', [AdminPagesController::class, 'showManufacturerReviews'])->middleware('admin');
 Route::get('/admin/reviews/{review_id}/{option}', [AdminPagesController::class, 'reviewToggle'])->middleware('admin');

@@ -11,6 +11,8 @@
 
 @section('content')
     <div class="hero_section my-12 px-4 lg:px-0 mx-auto">
+        @include('includes.warning')
+
         <img src="/assets/images/global_manufacturers.png" alt="Image" class="block max-h-40 mx-auto">
 
         <h3 class="text-2xl lg:text-[40px] text-center text-black">

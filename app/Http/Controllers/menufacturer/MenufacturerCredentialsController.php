@@ -405,6 +405,17 @@ class MenufacturerCredentialsController extends Controller
     }
 
 
+    
+
+
+    public function manufacturerProfilePage($page_type)
+    {
+        $manufacturer_uid = Auth::guard('manufacturer')->user()->manufacturer_uid;
+        $manufacturer = Manufacturer::where('manufacturer_uid', $manufacturer_uid)->first();
+        return view('manufacturer.profile', compact('page_type', 'manufacturer'));
+    }
+
+
 
 
 

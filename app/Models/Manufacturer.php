@@ -74,6 +74,8 @@ class Manufacturer extends Authenticatable
         'profile_completed',
         'profile_completed_at',
 
+        'auto_visibility',
+        
         // Subscription
         'subscription', // subscription status
         'subscription_type',
