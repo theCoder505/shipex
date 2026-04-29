@@ -10,6 +10,7 @@ class WebsiteInformation extends Model
     use HasFactory;
 
     protected $fillable = [
+        'auto_visibility',
         'brandname',
         'brandlogo',
         'website_icon',

@@ -159,7 +159,7 @@
 @section('content')
     <div class="hero_section my-4 px-4 lg:px-8 max-w-[1600px] mx-auto">
         @include('includes.warning')
-        
+
         <div class="flex gap-4 items-center">
             <a href="/manufacturers" class="text-[#46484D] dark:text-gray-300">All manufacturers</a>
             <i class="fa fa-chevron-right text-[#46484D] dark:text-gray-300"></i>
@@ -473,10 +473,12 @@
                             <img src="/assets/images/iso.png" alt="" class="rounded-full h-[80px] w-[80px]">
                             <div class="">
                                 <h3 class="text-[#121212] dark:text-gray-100">{{ $certificate['name'] }}</h3>
-                                <a href="{{ asset($certificate['document']) }}" target="_blank"
-                                    class="underline text-blue-600 dark:text-blue-400">
-                                    See certification
-                                </a>
+                                @if ($certificate['document'])
+                                    <a href="{{ asset($certificate['document']) }}" target="_blank"
+                                        class="underline text-blue-600 dark:text-blue-400">
+                                        See certification
+                                    </a>
+                                @endif
                             </div>
                         </div>
                     @endforeach

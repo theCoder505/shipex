@@ -302,6 +302,7 @@ class AdminPagesController extends Controller
     {
         $request->validate([
             'brandname' => 'sometimes|string|max:255',
+            // 'auto_visibility' => 'sometimes|string',
             'brandlogo' => 'sometimes|image|mimes:jpeg,png,jpg,gif,svg|max:51200',
             'website_icon' => 'sometimes|image|max:51200',
             'currency' => 'sometimes|string|max:10',
